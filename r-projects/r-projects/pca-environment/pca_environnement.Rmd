@@ -1,0 +1,864 @@
+---
+title: "Analyse en Composantes Principales (ACP) - Données environnementales"
+author: "Analyse de la pollution atmosphérique"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+subtitle: "Comparaison internationale des émissions polluantes"
+fontsize: 12pt
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: hide
+  word_document: default
+---
+
+# PARTIE III : ANALYSE EN COMPOSANTES PRINCIPALES (ACP)
+
+## 1. Configuration et packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, 
+                      fig.width = 10, fig.height = 8)
+
+# Fonction pour installer les packages manquants
+install_if_missing <- function(packages) {
+  for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE)) {
+      install.packages(pkg, dependencies = TRUE)
+      library(pkg, character.only = TRUE)
+    }
+  }
+}
+
+# Liste des packages nécessaires
+packages_needed <- c(
+  "readxl",        # Import Excel
+  "FactoMineR",    # ACP et autres analyses factorielles
+  "factoextra",    # Visualisation des résultats ACP
+  "ggplot2",       # Graphiques avancés
+  "tidyverse",     # Manipulation de données
+  "corrplot",      # Matrices de corrélation
+  "gridExtra",     # Arrangement de graphiques
+  "knitr",         # Tableaux
+  "kableExtra",    # Tableaux formatés
+  "openxlsx"       # Export Excel
+)
+
+# Installation et chargement
+install_if_missing(packages_needed)
+```
+
+## 2. Configuration des répertoires
+
+```{r configuration}
+# Créer les dossiers nécessaires
+dir.create("data", showWarnings = FALSE)
+dir.create("outputs", showWarnings = FALSE)
+dir.create("figures", showWarnings = FALSE)
+
+cat("Répertoire de travail :", getwd(), "\n")
+cat("Dossiers créés : data/, outputs/, figures/\n")
+```
+
+## 3. Importation des données
+
+```{r import_data}
+cat("\n=== IMPORTATION DES DONNÉES ===\n\n")
+
+# OPTION 1 : Fichier Excel
+# Chemin par défaut - ADAPTEZ SI NÉCESSAIRE
+excel_path <- "C:/Users/tchio/OneDrive/Bureau/ACP_Complet/envirmt.xlsx"
+
+# Vérifier si le fichier existe
+if (file.exists(excel_path)) {
+  cat("✓ Fichier trouvé :", excel_path, "\n")
+  cat("Chargement en cours...\n")
+  
+  df <- read_excel(excel_path)
+  
+  cat("✓ Fichier Excel chargé avec succès.\n\n")
+} else {
+  cat("❌ Fichier non trouvé à l'emplacement spécifié :\n")
+  cat("   ", excel_path, "\n\n")
+  
+  stop("ERREUR : Le fichier envirmt.xlsx n'a pas été trouvé.
+
+Veuillez vérifier :
+1. Le chemin est-il correct ?
+2. Le fichier existe-t-il bien à cet emplacement ?
+3. Avez-vous les permissions d'accès ?
+
+Chemin actuel : ", excel_path)
+}
+
+cat("\n=== INFORMATIONS SUR LES DONNÉES ===\n")
+cat("Nombre de lignes (pays) :", nrow(df), "\n")
+cat("Nombre de colonnes (variables) :", ncol(df), "\n\n")
+
+cat("Noms des colonnes :\n")
+print(names(df))
+
+cat("\n=== APERÇU DES DONNÉES ===\n")
+print(head(df, 10))
+```
+
+## 4. Statistiques descriptives initiales
+
+```{r descriptive_initial}
+cat("\n=== STATISTIQUES DESCRIPTIVES ===\n\n")
+
+# Résumé statistique
+cat("Résumé des variables environnementales :\n\n")
+summary(df[, -1])  # Exclure la colonne 'pays'
+
+# Afficher les premières lignes
+cat("\n=== APERÇU DES DONNÉES ===\n")
+head(df, 10)
+
+# Tableau formaté
+kable(head(df, 15), 
+      caption = "Aperçu des données environnementales",
+      digits = 2) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+```
+
+## 5. Préparation des données
+
+```{r data_preparation}
+cat("\n=== PRÉPARATION DES DONNÉES ===\n\n")
+
+# Assigner les noms de pays comme identifiants de lignes
+rownames(df) <- df$pays
+
+# Transformer 'pays' en facteur
+df$pays <- as.factor(as.character(df$pays))
+
+# Vérifier l'unicité des pays
+cat("Vérification de l'unicité des pays :\n")
+table_pays <- table(df$pays)
+cat("Nombre d'occurrences par pays :\n")
+print(table_pays)
+
+if (any(table_pays > 1)) {
+  warning("ATTENTION : Certains pays apparaissent plusieurs fois !")
+} else {
+  cat("\n✓ Chaque pays n'apparaît qu'une seule fois.\n")
+}
+```
+
+## 6. Transformation logarithmique
+
+```{r log_transformation}
+cat("\n=== TRANSFORMATION LOGARITHMIQUE ===\n\n")
+
+cat("Justification : La transformation logarithmique permet de :\n")
+cat("1. Normaliser les distributions asymétriques\n")
+cat("2. Réduire l'influence des valeurs extrêmes\n")
+cat("3. Stabiliser la variance\n")
+cat("4. Rendre les relations plus linéaires\n\n")
+
+# Colonnes principales à transformer (exclure 'pays' et PM2.5 pour l'instant)
+Main_cols <- c("expoPF", "GES.hab", "Sox.hab", "Nox.hab", "CO.hab", "COV.HAB")
+
+cat("Variables transformées :\n")
+print(Main_cols)
+
+# Appliquer la transformation logarithmique
+df[Main_cols] <- lapply(df[Main_cols], log)
+
+cat("\n✓ Transformation logarithmique appliquée.\n")
+
+# Statistiques après transformation
+cat("\n=== STATISTIQUES APRÈS TRANSFORMATION ===\n")
+summary(df[, Main_cols])
+```
+
+## 7. Vérification de la normalité
+
+```{r normality_check, fig.width=12, fig.height=10}
+cat("\n=== VÉRIFICATION DE LA NORMALITÉ ===\n\n")
+
+# Créer des graphiques de distribution
+par(mfrow = c(3, 2))
+
+for (col in Main_cols) {
+  # Graphique ECDF (Empirical Cumulative Distribution Function)
+  plot(ecdf(df[[col]]), 
+       main = paste("Distribution de", col),
+       xlab = paste("log(", col, ")", sep = ""),
+       ylab = "Fonction de répartition empirique",
+       col = "steelblue",
+       lwd = 2)
+  
+  # Ajouter une courbe normale théorique
+  x_seq <- seq(min(df[[col]]), max(df[[col]]), length.out = 100)
+  lines(x_seq, pnorm(x_seq, mean(df[[col]]), sd(df[[col]])), 
+        col = "red", lty = 2, lwd = 2)
+  legend("topleft", legend = c("Empirique", "Normal théorique"),
+         col = c("steelblue", "red"), lty = c(1, 2), lwd = 2)
+}
+
+par(mfrow = c(1, 1))
+
+cat("Les courbes bleues (empiriques) proches des courbes rouges (normales théoriques)\n")
+cat("indiquent que les données transformées suivent approximativement une distribution normale.\n")
+```
+
+## 8. Histogrammes et QQ-plots
+
+```{r histograms_qqplots, fig.width=12, fig.height=10}
+cat("\n=== HISTOGRAMMES ET QQ-PLOTS ===\n\n")
+
+# Créer une grille de graphiques
+par(mfrow = c(3, 4))
+
+for (col in Main_cols) {
+  # Histogramme
+  hist(df[[col]], 
+       breaks = 20,
+       col = "lightblue",
+       border = "white",
+       main = paste("Histogramme -", col),
+       xlab = paste("log(", col, ")", sep = ""),
+       ylab = "Fréquence")
+  
+  # QQ-plot
+  qqnorm(df[[col]], 
+         main = paste("QQ-Plot -", col),
+         col = "steelblue",
+         pch = 19)
+  qqline(df[[col]], col = "red", lwd = 2)
+}
+
+par(mfrow = c(1, 1))
+
+cat("Les QQ-plots permettent de vérifier si les données suivent une distribution normale.\n")
+cat("Si les points s'alignent le long de la ligne rouge, la distribution est normale.\n")
+```
+
+## 9. Analyse de corrélation
+
+```{r correlation_analysis, fig.width=10, fig.height=10}
+cat("\n=== ANALYSE DE CORRÉLATION ===\n\n")
+
+# Calculer la matrice de corrélation
+cor_matrix <- cor(df[, Main_cols])
+
+cat("Matrice de corrélation :\n")
+print(round(cor_matrix, 3))
+
+# Visualisation avec corrplot
+corrplot(cor_matrix, 
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         number.cex = 0.8,
+         tl.col = "black",
+         tl.srt = 45,
+         title = "Matrice de corrélation des variables environnementales",
+         mar = c(0, 0, 2, 0))
+
+# Sauvegarder
+png("figures/correlation_matrix.png", width = 800, height = 800)
+corrplot(cor_matrix, 
+         method = "color",
+         type = "upper",
+         addCoef.col = "black",
+         number.cex = 0.8,
+         tl.col = "black",
+         tl.srt = 45,
+         title = "Matrice de corrélation",
+         mar = c(0, 0, 2, 0))
+dev.off()
+
+cat("\n✓ Matrice de corrélation générée et sauvegardée.\n")
+
+# Identifier les corrélations fortes
+cat("\n=== CORRÉLATIONS FORTES (|r| > 0.7) ===\n")
+high_cor <- which(abs(cor_matrix) > 0.7 & cor_matrix != 1, arr.ind = TRUE)
+if (nrow(high_cor) > 0) {
+  for (i in 1:nrow(high_cor)) {
+    row_var <- rownames(cor_matrix)[high_cor[i, 1]]
+    col_var <- colnames(cor_matrix)[high_cor[i, 2]]
+    cor_val <- cor_matrix[high_cor[i, 1], high_cor[i, 2]]
+    if (row_var < col_var) {  # Éviter les doublons
+      cat(row_var, "<->", col_var, ":", round(cor_val, 3), "\n")
+    }
+  }
+} else {
+  cat("Aucune corrélation forte détectée (|r| > 0.7).\n")
+}
+```
+
+## 10. Analyse en Composantes Principales (ACP)
+
+```{r pca_analysis}
+cat("\n=== ANALYSE EN COMPOSANTES PRINCIPALES (ACP) ===\n\n")
+
+# Réaliser l'ACP
+res_acp <- PCA(X = df[, Main_cols], 
+               scale.unit = TRUE,  # Centrer et réduire les variables
+               ncp = 5,            # Nombre de composantes à calculer
+               graph = FALSE)
+
+cat("✓ ACP réalisée avec succès.\n\n")
+
+# Explorer les éléments du résultat
+cat("Éléments disponibles dans l'objet ACP :\n")
+print(names(res_acp))
+```
+
+## 11. Analyse des valeurs propres
+
+```{r eigenvalues_analysis, fig.width=12, fig.height=6}
+cat("\n=== ANALYSE DES VALEURS PROPRES ===\n\n")
+
+# Extraire les valeurs propres et variance expliquée
+eigenvalues <- res_acp$eig
+
+cat("Valeurs propres et pourcentages de variance :\n")
+print(eigenvalues)
+
+# Tableau formaté
+kable(eigenvalues, 
+      caption = "Valeurs propres et variance expliquée",
+      digits = 3,
+      col.names = c("Valeur propre", "% de variance", "% cumulé")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover"))
+
+# Scree plot (éboulis des valeurs propres)
+par(mfrow = c(1, 2))
+
+# Graphique 1 : Valeurs propres
+plot(eigenvalues[, "eigenvalue"], 
+     type = "b",
+     xlab = "Composantes principales",
+     ylab = "Valeur propre (inertie)",
+     main = "Éboulis des valeurs propres",
+     col = "steelblue",
+     pch = 19,
+     lwd = 2)
+abline(h = 1, col = "red", lty = 2)
+legend("topright", legend = "Critère de Kaiser (λ = 1)", 
+       col = "red", lty = 2)
+
+# Graphique 2 : Pourcentage de variance
+barplot(eigenvalues[, "percentage of variance"],
+        names.arg = 1:nrow(eigenvalues),
+        xlab = "Composantes principales",
+        ylab = "Pourcentage de variance (%)",
+        main = "Pourcentage de variance expliquée",
+        col = "coral",
+        border = "white")
+
+par(mfrow = c(1, 1))
+
+# Sauvegarder
+png("figures/scree_plot.png", width = 1200, height = 600)
+par(mfrow = c(1, 2))
+plot(eigenvalues[, "eigenvalue"], type = "b",
+     xlab = "Composantes principales", ylab = "Valeur propre",
+     main = "Éboulis des valeurs propres", col = "steelblue", pch = 19, lwd = 2)
+abline(h = 1, col = "red", lty = 2)
+barplot(eigenvalues[, "percentage of variance"],
+        names.arg = 1:nrow(eigenvalues),
+        xlab = "Composantes", ylab = "% variance",
+        main = "% de variance expliquée", col = "coral")
+par(mfrow = c(1, 1))
+dev.off()
+
+cat("\n=== INTERPRÉTATION ===\n")
+cat("Nombre de composantes suggérées (critère de Kaiser, λ > 1) :", 
+    sum(eigenvalues[, "eigenvalue"] > 1), "\n")
+cat("Variance expliquée par les 2 premières composantes :", 
+    round(eigenvalues[2, "cumulative percentage of variance"], 2), "%\n")
+```
+
+## 12. Cercle de corrélation (variables)
+
+```{r correlation_circle, fig.width=10, fig.height=10}
+cat("\n=== CERCLE DE CORRÉLATION DES VARIABLES ===\n\n")
+
+# Coordonnées des variables sur les axes
+var_coord <- res_acp$var$coord
+
+cat("Coordonnées des variables sur les axes principaux :\n")
+print(round(var_coord[, 1:3], 3))
+
+# Qualité de représentation des variables (cos²)
+var_cos2 <- res_acp$var$cos2
+
+cat("\nQualité de représentation (cos²) des variables :\n")
+print(round(var_cos2[, 1:3], 3))
+
+# Contribution des variables aux axes (%)
+var_contrib <- res_acp$var$contrib
+
+cat("\nContribution des variables aux axes (%) :\n")
+print(round(var_contrib[, 1:3], 2))
+
+# Visualisation : Cercle de corrélation
+plot(res_acp, 
+     choix = "var",
+     axes = c(1, 2),
+     title = "Cercle de corrélation - Variables environnementales",
+     col.var = "steelblue",
+     lwd = 2)
+
+# Version avec factoextra (plus esthétique)
+fviz_pca_var(res_acp,
+             axes = c(1, 2),
+             col.var = "contrib",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,
+             title = "Cercle de corrélation - Contribution des variables")
+
+# Sauvegarder
+ggsave("figures/correlation_circle.png", width = 10, height = 10, dpi = 300)
+
+cat("\n=== INTERPRÉTATION DU CERCLE DE CORRÉLATION ===\n")
+cat("- Variables proches : fortement corrélées\n")
+cat("- Variables éloignées : faiblement corrélées\n")
+cat("- Variables proches du cercle : bien représentées\n")
+cat("- Variables au centre : mal représentées\n")
+```
+
+## 13. Interprétation des axes principaux
+
+```{r axes_interpretation}
+cat("\n=== INTERPRÉTATION DES AXES PRINCIPAUX ===\n\n")
+
+# Axe 1
+cat("=== AXE 1 (", round(eigenvalues[1, "percentage of variance"], 2), "% de variance) ===\n", sep = "")
+cat("\nVariables les plus corrélées (positivement) :\n")
+axis1_pos <- sort(var_coord[, 1], decreasing = TRUE)[1:3]
+print(round(axis1_pos, 3))
+
+cat("\nVariables les plus corrélées (négativement) :\n")
+axis1_neg <- sort(var_coord[, 1], decreasing = FALSE)[1:3]
+print(round(axis1_neg, 3))
+
+cat("\nInterprétation suggérée de l'Axe 1 :\n")
+cat("→ AXE DE POLLUTION GLOBALE (effet de taille)\n")
+cat("  Oppose les pays fortement pollueurs aux pays moins pollueurs\n\n")
+
+# Axe 2
+cat("=== AXE 2 (", round(eigenvalues[2, "percentage of variance"], 2), "% de variance) ===\n", sep = "")
+cat("\nVariables les plus corrélées (positivement) :\n")
+axis2_pos <- sort(var_coord[, 2], decreasing = TRUE)[1:3]
+print(round(axis2_pos, 3))
+
+cat("\nVariables les plus corrélées (négativement) :\n")
+axis2_neg <- sort(var_coord[, 2], decreasing = FALSE)[1:3]
+print(round(axis2_neg, 3))
+
+cat("\nInterprétation suggérée de l'Axe 2 :\n")
+cat("→ AXE DE TYPE DE POLLUTION\n")
+cat("  Distingue les types d'émissions (ex: particules vs gaz)\n")
+```
+
+## 14. Projection des pays (individus)
+
+```{r countries_projection, fig.width=12, fig.height=10}
+cat("\n=== PROJECTION DES PAYS DANS LE PLAN FACTORIEL ===\n\n")
+
+# Coordonnées des pays
+ind_coord <- res_acp$ind$coord
+
+cat("Coordonnées des 10 premiers pays :\n")
+print(round(ind_coord[1:10, 1:3], 3))
+
+# Qualité de représentation des pays
+ind_cos2 <- res_acp$ind$cos2
+
+cat("\nQualité de représentation des 10 premiers pays (cos²) :\n")
+print(round(ind_cos2[1:10, 1:2], 3))
+
+# Visualisation classique
+plot(res_acp, 
+     choix = "ind",
+     axes = c(1, 2),
+     title = "Projection des pays - Plan factoriel (1-2)",
+     col.ind = "darkblue")
+
+# Visualisation avancée avec factoextra
+fviz_pca_ind(res_acp,
+             axes = c(1, 2),
+             col.ind = "cos2",
+             gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"),
+             repel = TRUE,
+             title = "Projection des pays - Qualité de représentation")
+
+ggsave("figures/countries_projection.png", width = 12, height = 10, dpi = 300)
+
+cat("\n=== IDENTIFICATION DES PAYS EXTRÊMES ===\n\n")
+
+# Pays les plus positifs sur Axe 1 (plus pollueurs)
+cat("Pays les plus pollueurs (Axe 1 positif) :\n")
+top_polluters <- head(sort(ind_coord[, 1], decreasing = TRUE), 5)
+print(round(top_polluters, 3))
+
+# Pays les moins pollueurs (Axe 1 négatif)
+cat("\nPays les moins pollueurs (Axe 1 négatif) :\n")
+low_polluters <- head(sort(ind_coord[, 1], decreasing = FALSE), 5)
+print(round(low_polluters, 3))
+```
+
+## 15. Biplot (variables + individus)
+
+```{r biplot, fig.width=12, fig.height=10}
+cat("\n=== BIPLOT (VARIABLES + PAYS) ===\n\n")
+
+# Biplot avec factoextra
+fviz_pca_biplot(res_acp,
+                axes = c(1, 2),
+                repel = TRUE,
+                col.var = "red",
+                col.ind = "blue",
+                title = "Biplot ACP - Variables et Pays",
+                labelsize = 3)
+
+ggsave("figures/biplot_acp.png", width = 12, height = 10, dpi = 300)
+
+cat("Le biplot combine :\n")
+cat("- Les variables (flèches rouges)\n")
+cat("- Les pays (points bleus)\n")
+cat("→ Permet d'interpréter simultanément variables et observations\n")
+```
+
+## 16. ACP avec pays supplémentaires
+
+```{r supplementary_countries}
+cat("\n=== ACP AVEC PAYS SUPPLÉMENTAIRES ===\n\n")
+
+# Identifier les pays supplémentaires (exemple : Australie, Islande, Nouvelle-Zélande)
+suppl_countries <- c("Australie", "Islande", "Nouvelle-Zélande")
+suppl_indices <- which(df$pays %in% suppl_countries)
+
+cat("Pays supplémentaires :", suppl_countries, "\n")
+cat("Indices :", suppl_indices, "\n\n")
+
+# ACP avec pays supplémentaires
+res_acp3 <- PCA(X = df[, Main_cols],
+                scale.unit = TRUE,
+                ind.sup = suppl_indices,
+                graph = FALSE)
+
+cat("✓ ACP avec pays supplémentaires réalisée.\n\n")
+
+# Visualisation
+fviz_pca_ind(res_acp3,
+             axes = c(1, 2),
+             col.ind = "cos2",
+             col.ind.sup = "red",
+             repel = TRUE,
+             title = "ACP - Pays actifs (bleu-orange) et supplémentaires (rouge)")
+
+ggsave("figures/acp_supplementary_countries.png", width = 12, height = 10, dpi = 300)
+
+cat("Les pays supplémentaires (en rouge) ne participent pas à la construction des axes\n")
+cat("mais sont projetés dans l'espace défini par les autres pays.\n")
+```
+
+## 17. ACP avec variable supplémentaire (PM2.5)
+
+```{r supplementary_variable}
+cat("\n=== ACP AVEC VARIABLE SUPPLÉMENTAIRE (PM2.5) ===\n\n")
+
+# Transformer PM2.5 en log
+df$PM2.5.hab <- log(df$PM2.5.hab)
+
+# Position de la colonne PM2.5
+pm25_col <- which(names(df) == "PM2.5.hab")
+
+cat("Variable supplémentaire : PM2.5.hab (colonne", pm25_col, ")\n\n")
+
+# ACP avec variable supplémentaire
+res_acp4 <- PCA(X = df[, c(Main_cols, "PM2.5.hab")],
+                scale.unit = TRUE,
+                ind.sup = suppl_indices,
+                quanti.sup = length(Main_cols) + 1,  # Position de PM2.5
+                graph = FALSE)
+
+cat("✓ ACP avec variable supplémentaire réalisée.\n\n")
+
+# Cercle de corrélation avec PM2.5
+fviz_pca_var(res_acp4,
+             axes = c(1, 2),
+             col.var = "black",
+             col.quanti.sup = "red",
+             repel = TRUE,
+             title = "Cercle de corrélation avec PM2.5 (rouge)")
+
+ggsave("figures/correlation_circle_with_pm25.png", width = 10, height = 10, dpi = 300)
+
+# Coordonnées de PM2.5
+cat("Coordonnées de PM2.5 sur les axes principaux :\n")
+pm25_coord <- res_acp4$quanti.sup$coord
+print(round(pm25_coord[, 1:2], 3))
+
+cat("\nInterprétation : PM2.5 est corrélée avec les axes comme suit :\n")
+cat("- Axe 1 :", round(pm25_coord[1, 1], 3), "\n")
+cat("- Axe 2 :", round(pm25_coord[1, 2], 3), "\n")
+```
+
+## 18. Construction d'indices synthétiques
+
+```{r synthetic_indices}
+cat("\n=== CONSTRUCTION D'INDICES SYNTHÉTIQUES ===\n\n")
+
+cat("L'ACP permet de créer deux indices indépendants :\n")
+cat("1. Indice de pollution globale (Axe 1)\n")
+cat("2. Indice de type de pollution (Axe 2)\n\n")
+
+# Extraire les coordonnées des pays sur les 2 premiers axes
+indices <- res_acp4$ind$coord[, 1:2]
+
+# Renommer
+colnames(indices) <- c("Indice_Global", "Indice_Type")
+
+# Créer un dataframe avec les résultats
+indices_df <- data.frame(
+  Pays = rownames(indices),
+  Indice_Global = round(indices[, 1], 3),
+  Indice_Type = round(indices[, 2], 3)
+)
+
+# Trier par indice global
+indices_df <- indices_df[order(indices_df$Indice_Global, decreasing = TRUE), ]
+
+cat("Indices synthétiques pour tous les pays :\n")
+print(indices_df)
+
+# Sauvegarder
+write.xlsx(indices_df, "outputs/synthetic_pollution_indices.xlsx", rowNames = FALSE)
+
+cat("\n✓ Indices sauvegardés dans 'outputs/synthetic_pollution_indices.xlsx'\n")
+```
+
+## 19. Contribution et qualité de représentation
+
+```{r contribution_quality, fig.width=12, fig.height=8}
+cat("\n=== CONTRIBUTION ET QUALITÉ DE REPRÉSENTATION ===\n\n")
+
+# Contribution des variables à l'Axe 1
+fviz_contrib(res_acp, 
+             choice = "var", 
+             axes = 1,
+             top = 10,
+             title = "Contribution des variables à l'Axe 1")
+
+ggsave("figures/var_contrib_axis1.png", width = 10, height = 6, dpi = 300)
+
+# Contribution des variables à l'Axe 2
+fviz_contrib(res_acp, 
+             choice = "var", 
+             axes = 2,
+             top = 10,
+             title = "Contribution des variables à l'Axe 2")
+
+ggsave("figures/var_contrib_axis2.png", width = 10, height = 6, dpi = 300)
+
+# Qualité de représentation des variables (cos²)
+fviz_cos2(res_acp,
+          choice = "var",
+          axes = 1:2,
+          title = "Qualité de représentation des variables (cos²)")
+
+ggsave("figures/var_cos2.png", width = 10, height = 6, dpi = 300)
+
+# Contribution des pays aux axes
+cat("\nContribution des 10 pays les plus contributeurs à l'Axe 1 :\n")
+ind_contrib_axis1 <- sort(res_acp$ind$contrib[, 1], decreasing = TRUE)[1:10]
+print(round(ind_contrib_axis1, 2))
+```
+
+## 20. Analyse des plans factoriels secondaires
+
+```{r secondary_planes, fig.width=12, fig.height=8}
+cat("\n=== PLANS FACTORIELS SECONDAIRES ===\n\n")
+
+# Plan 1-3
+fviz_pca_biplot(res_acp,
+                axes = c(1, 3),
+                repel = TRUE,
+                col.var = "red",
+                col.ind = "blue",
+                title = "Biplot - Axes 1 et 3")
+
+ggsave("figures/biplot_axes_1_3.png", width = 12, height = 10, dpi = 300)
+
+# Plan 2-3
+fviz_pca_biplot(res_acp,
+                axes = c(2, 3),
+                repel = TRUE,
+                col.var = "red",
+                col.ind = "blue",
+                title = "Biplot - Axes 2 et 3")
+
+ggsave("figures/biplot_axes_2_3.png", width = 12, height = 10, dpi = 300)
+
+cat("✓ Plans factoriels secondaires générés.\n")
+```
+
+## 21. Classification hiérarchique sur les composantes principales
+
+```{r hcpc, fig.width=12, fig.height=10}
+cat("\n=== CLASSIFICATION HIÉRARCHIQUE (HCPC) ===\n\n")
+
+# HCPC : Classification basée sur l'ACP
+res_hcpc <- HCPC(res_acp, 
+                 nb.clust = -1,  # Choix automatique du nombre de clusters
+                 graph = FALSE)
+
+cat("Nombre de clusters suggéré :", res_hcpc$call$t$nb.clust, "\n\n")
+
+# Visualisation du dendrogramme
+fviz_dend(res_hcpc,
+          cex = 0.7,
+          palette = "jco",
+          rect = TRUE,
+          rect_fill = TRUE,
+          rect_border = "jco",
+          labels_track_height = 0.8,
+          main = "Dendrogramme - Classification des pays")
+
+ggsave("figures/dendrogram_hcpc.png", width = 12, height = 10, dpi = 300)
+
+# Projection avec clusters
+fviz_cluster(res_hcpc,
+             repel = TRUE,
+             show.clust.cent = TRUE,
+             palette = "jco",
+             ggtheme = theme_minimal(),
+             main = "Classification des pays selon leur profil de pollution")
+
+ggsave("figures/clusters_projection.png", width = 12, height = 10, dpi = 300)
+
+# Description des clusters
+cat("\n=== DESCRIPTION DES CLUSTERS ===\n\n")
+cat("Clusters identifiés :\n")
+cluster_table <- table(res_hcpc$data.clust$clust)
+print(cluster_table)
+
+# Pays par cluster
+cat("\nPays dans chaque cluster :\n")
+for (i in 1:res_hcpc$call$t$nb.clust) {
+  cat("\n--- CLUSTER", i, "---\n")
+  cluster_countries <- rownames(res_hcpc$data.clust)[res_hcpc$data.clust$clust == i]
+  print(cluster_countries)
+}
+
+# Sauvegarder les clusters
+clusters_df <- data.frame(
+  Pays = rownames(res_hcpc$data.clust),
+  Cluster = res_hcpc$data.clust$clust
+)
+write.xlsx(clusters_df, "outputs/country_clusters.xlsx", rowNames = FALSE)
+
+cat("\n✓ Clusters sauvegardés dans 'outputs/country_clusters.xlsx'\n")
+```
+
+## 22. Rapport de synthèse
+
+```{r synthesis_report}
+cat("\n", rep("=", 80), "\n", sep = "")
+cat("RAPPORT DE SYNTHÈSE - ANALYSE EN COMPOSANTES PRINCIPALES\n")
+cat(rep("=", 80), "\n\n", sep = "")
+
+cat("ÉCHANTILLON :\n")
+cat("- Nombre de pays : ", nrow(df), "\n", sep = "")
+cat("- Nombre de variables : ", length(Main_cols), "\n\n", sep = "")
+
+cat("VARIABLES ANALYSÉES :\n")
+for (var in Main_cols) {
+  cat("  •", var, "\n")
+}
+
+cat("\n\nRÉSULTATS DE L'ACP :\n")
+cat("- Variance expliquée par les 2 premiers axes : ",
+    round(eigenvalues[2, "cumulative percentage of variance"], 2), "%\n", sep = "")
+cat("- Nombre d'axes significatifs (λ > 1) : ", 
+    sum(eigenvalues[, "eigenvalue"] > 1), "\n", sep = "")
+
+cat("\n\nINTERPRÉTATION DES AXES :\n")
+cat("AXE 1 (", round(eigenvalues[1, "percentage of variance"], 2), "%) :\n", sep = "")
+cat("  → Pollution globale (effet de taille)\n")
+cat("  → Oppose pays fortement pollueurs aux pays moins pollueurs\n\n")
+
+cat("AXE 2 (", round(eigenvalues[2, "percentage of variance"], 2), "%) :\n", sep = "")
+cat("  → Type de pollution\n")
+cat("  → Distingue les profils d'émissions\n\n")
+
+cat("\nPAYS LES PLUS POLLUEURS (Axe 1) :\n")
+top3_polluters <- names(head(sort(ind_coord[, 1], decreasing = TRUE), 3))
+for (i in 1:3) {
+  cat("  ", i, ". ", top3_polluters[i], "\n", sep = "")
+}
+
+cat("\nPAYS LES MOINS POLLUEURS (Axe 1) :\n")
+top3_clean <- names(head(sort(ind_coord[, 1], decreasing = FALSE), 3))
+for (i in 1:3) {
+  cat("  ", i, ". ", top3_clean[i], "\n", sep = "")
+}
+
+cat("\n\nCLASSIFICATION :\n")
+cat("- Nombre de groupes identifiés : ", res_hcpc$call$t$nb.clust, "\n", sep = "")
+cat("- Les pays se regroupent selon leurs profils de pollution similaires\n")
+
+cat("\n\nFICHIERS GÉNÉRÉS :\n")
+cat("\nOUTPUTS :\n")
+cat("- outputs/synthetic_pollution_indices.xlsx (indices synthétiques)\n")
+cat("- outputs/country_clusters.xlsx (classification des pays)\n")
+
+cat("\nFIGURES :\n")
+cat("- figures/correlation_matrix.png\n")
+cat("- figures/scree_plot.png\n")
+cat("- figures/correlation_circle.png\n")
+cat("- figures/countries_projection.png\n")
+cat("- figures/biplot_acp.png\n")
+cat("- figures/clusters_projection.png\n")
+cat("- figures/dendrogram_hcpc.png\n")
+
+cat("\n\nRECOMMANDATIONS :\n")
+cat("1. Analyser les politiques environnementales des pays leaders\n")
+cat("2. Identifier les leviers de réduction des émissions\n")
+cat("3. Comparer les trajectoires temporelles (si données longitudinales)\n")
+cat("4. Intégrer des variables socio-économiques pour enrichir l'analyse\n")
+
+cat("\n", rep("=", 80), "\n", sep = "")
+```
+
+---
+
+# FIN DE L'ANALYSE
+
+**Note importante :** Ce script utilise des données simulées pour la démonstration.
+
+**Pour utiliser vos propres données :**
+
+1. Remplacez la section de génération de données par :
+   ```r
+   df <- read_excel("data/envirmt.xlsx")
+   ```
+
+2. Vérifiez que vos données contiennent les colonnes suivantes :
+   - `pays` : Nom du pays
+   - `expoPF` : Exposition particules fines
+   - `GES.hab` : GES par habitant
+   - `Sox.hab` : SOx par habitant
+   - `Nox.hab` : NOx par habitant
+   - `CO.hab` : CO par habitant
+   - `COV.HAB` : COV par habitant
+   - `PM2.5.hab` : PM2.5 (optionnel)
+
+3. Adaptez les noms de pays supplémentaires selon votre analyse
+
+4. Exécutez le script avec "Knit" dans RStudio
+
+**Packages R requis :**
+- FactoMineR : Analyses factorielles
+- factoextra : Visualisations ACP
+- corrplot : Matrices de corrélation
+- tidyverse : Manipulation de données
+- ggplot2 : Graphiques
