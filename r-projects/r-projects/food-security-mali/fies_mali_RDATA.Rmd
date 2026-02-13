@@ -1,0 +1,649 @@
+---
+title: "Estimation de l'échelle FIES (Food Insecurity Experience Scale) - Mali"
+author: "Analyse complète"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+subtitle: "Modèle de Rasch appliqué à l'insécurité alimentaire"
+fontsize: 12pt
+output: 
+  word_document: default
+  html_document: default
+---
+
+# PARTIE I : ANALYSE FIES POUR LE MALI (avec fichier .RData)
+
+## 1. Installation et chargement des packages
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+
+# Fonction pour installer les packages manquants
+install_if_missing <- function(packages) {
+  for (pkg in packages) {
+    if (!require(pkg, character.only = TRUE)) {
+      install.packages(pkg, dependencies = TRUE)
+      library(pkg, character.only = TRUE)
+    }
+  }
+}
+
+# Liste des packages nécessaires
+packages_needed <- c(
+  "RM.weights",    # Programme FAO pour le modèle de Rasch
+  "tidyverse",     # Manipulation de données
+  "haven",         # Import de fichiers Stata
+  "readxl",        # Import Excel
+  "openxlsx",      # Export Excel
+  "dplyr",         # Manipulation de données
+  "xtable",        # Tableaux formatés
+  "knitr",         # Rapport dynamique
+  "ggplot2"        # Graphiques avancés
+)
+
+# Installation et chargement
+install_if_missing(packages_needed)
+```
+
+## 2. Chargement du fichier .RData
+
+```{r load_rdata}
+cat("\n=== CHARGEMENT DU FICHIER .RData ===\n\n")
+
+# Chemin vers votre fichier .RData
+rdata_path <- "C:/Users/tchio/OneDrive/Bureau/FIES/.RData"
+
+# Vérifier si le fichier existe
+if (!file.exists(rdata_path)) {
+  stop(paste("Le fichier", rdata_path, "n'existe pas. Veuillez vérifier le chemin."))
+}
+
+# Charger le fichier .RData
+cat("Chargement de :", rdata_path, "\n")
+load(rdata_path)
+
+cat("✓ Fichier .RData chargé avec succès.\n\n")
+
+# Lister tous les objets chargés dans l'environnement
+cat("=== OBJETS DISPONIBLES DANS LE .RData ===\n")
+objets_disponibles <- ls()
+cat("Nombre d'objets chargés :", length(objets_disponibles), "\n\n")
+cat("Liste des objets :\n")
+for (i in seq_along(objets_disponibles)) {
+  obj_name <- objets_disponibles[i]
+  obj_class <- class(get(obj_name))
+  obj_size <- object.size(get(obj_name))
+  
+  cat(sprintf("%2d. %-20s | Type: %-15s | Taille: %s\n", 
+              i, obj_name, paste(obj_class, collapse = ", "), 
+              format(obj_size, units = "auto")))
+}
+
+cat("\n=== IDENTIFICATION DU DATASET PRINCIPAL ===\n")
+# Rechercher les dataframes
+dataframes <- objets_disponibles[sapply(objets_disponibles, function(x) is.data.frame(get(x)))]
+
+if (length(dataframes) > 0) {
+  cat("Dataframes trouvés :\n")
+  for (df_name in dataframes) {
+    df_temp <- get(df_name)
+    cat(sprintf("  • %s : %d lignes × %d colonnes\n", 
+                df_name, nrow(df_temp), ncol(df_temp)))
+    cat("    Colonnes :", paste(names(df_temp)[1:min(10, ncol(df_temp))], collapse = ", "))
+    if (ncol(df_temp) > 10) cat(", ...")
+    cat("\n")
+  }
+} else {
+  cat("Aucun dataframe trouvé dans le .RData\n")
+}
+```
+
+## 3. Exploration et identification des données FIES
+
+```{r explore_data}
+cat("\n=== EXPLORATION DES DONNÉES ===\n\n")
+
+# IMPORTANT : Identifiez le nom de votre dataset principal
+# Exemples possibles : mali, dm, data, fies_data, etc.
+
+# Rechercher automatiquement le dataset le plus probable
+possible_datasets <- dataframes
+
+if (length(possible_datasets) == 0) {
+  stop("Aucun dataframe trouvé. Vérifiez le contenu de votre .RData")
+}
+
+# Si un seul dataframe, l'utiliser
+if (length(possible_datasets) == 1) {
+  dataset_name <- possible_datasets[1]
+  cat("Un seul dataframe trouvé :", dataset_name, "\n")
+  mali <- get(dataset_name)
+} else {
+  # Si plusieurs dataframes, chercher celui avec les colonnes FIES typiques
+  cat("Plusieurs dataframes trouvés. Recherche du dataset FIES...\n")
+  
+  for (df_name in possible_datasets) {
+    df_temp <- get(df_name)
+    col_names <- tolower(names(df_temp))
+    
+    # Vérifier si contient des colonnes typiques FIES
+    fies_keywords <- c("worried", "healthy", "fewfood", "skipped", "ateless", 
+                       "ranout", "hungry", "whlday", "s08a")
+    
+    matches <- sum(sapply(fies_keywords, function(kw) any(grepl(kw, col_names))))
+    
+    if (matches > 2) {
+      dataset_name <- df_name
+      cat("✓ Dataset FIES identifié :", dataset_name, "\n")
+      mali <- get(dataset_name)
+      break
+    }
+  }
+  
+  # Si aucun n'est identifié automatiquement
+  if (!exists("mali")) {
+    cat("\n⚠ ATTENTION : Impossible d'identifier automatiquement le dataset FIES\n")
+    cat("Veuillez spécifier manuellement le nom du dataset.\n\n")
+    cat("Datasets disponibles :\n")
+    print(possible_datasets)
+    
+    # Par défaut, prendre le premier
+    dataset_name <- possible_datasets[1]
+    cat("\nUtilisation du dataset :", dataset_name, "\n")
+    mali <- get(dataset_name)
+  }
+}
+
+cat("\n=== INFORMATIONS SUR LE DATASET SÉLECTIONNÉ ===\n")
+cat("Nom du dataset :", dataset_name, "\n")
+cat("Dimensions :", nrow(mali), "lignes ×", ncol(mali), "colonnes\n\n")
+
+cat("Structure du dataset :\n")
+str(mali)
+
+cat("\n=== APERÇU DES DONNÉES ===\n")
+print(head(mali, 10))
+
+cat("\n=== NOMS DES COLONNES ===\n")
+print(names(mali))
+```
+
+## 4. Identification et sélection des colonnes FIES
+
+```{r identify_fies_columns}
+cat("\n=== IDENTIFICATION DES COLONNES FIES ===\n\n")
+
+# Les questions FIES sont généralement nommées :
+# s08aq01 à s08aq08 OU WORRIED, HEALTHY, etc.
+
+col_names <- names(mali)
+
+# Rechercher les colonnes FIES
+fies_patterns <- c("s08aq", "worried", "healthy", "fewfood", "skipped", 
+                   "ateless", "ranout", "hungry", "whlday")
+
+fies_cols <- c()
+for (pattern in fies_patterns) {
+  matches <- grep(pattern, col_names, ignore.case = TRUE)
+  if (length(matches) > 0) {
+    fies_cols <- c(fies_cols, matches)
+  }
+}
+
+# Supprimer les doublons
+fies_cols <- unique(fies_cols)
+
+if (length(fies_cols) == 0) {
+  cat("⚠ ATTENTION : Aucune colonne FIES détectée automatiquement.\n")
+  cat("Veuillez vérifier les noms de colonnes et spécifier manuellement.\n\n")
+  cat("Colonnes disponibles :\n")
+  print(col_names)
+  
+  # Si votre code original utilisait c(4:10, 12), décommentez :
+  # fies_cols <- c(4:10, 12)
+  
+  stop("Veuillez identifier manuellement les colonnes FIES")
+}
+
+cat("Colonnes FIES identifiées :\n")
+cat("Indices :", fies_cols, "\n")
+cat("Noms :", col_names[fies_cols], "\n\n")
+
+# Sélectionner uniquement les colonnes FIES
+dm <- mali[, fies_cols]
+
+cat("✓ Dataset FIES extrait :", nrow(dm), "lignes ×", ncol(dm), "colonnes\n")
+```
+
+## 5. Exploration des données brutes
+
+```{r exploration}
+cat("\n=== DISTRIBUTION DES RÉPONSES BRUTES ===\n\n")
+
+# Créer un tableau de fréquences pour chaque question
+for (i in 1:ncol(dm)) {
+  cat("Variable", names(dm)[i], ":\n")
+  print(table(dm[[i]], useNA = "ifany"))
+  cat("\n")
+}
+
+# Résumé statistique
+cat("\n=== RÉSUMÉ STATISTIQUE ===\n")
+summary(dm)
+```
+
+## 6. Nettoyage des données
+
+```{r clean_data}
+cat("\n=== NETTOYAGE DES DONNÉES ===\n\n")
+
+# Nombre de lignes avant nettoyage
+n_avant <- nrow(dm)
+cat("Nombre de lignes avant nettoyage :", n_avant, "\n")
+
+# Recodage des valeurs
+# Examiner les valeurs uniques pour déterminer le schéma de codage
+cat("\nValeurs uniques dans chaque colonne :\n")
+for (i in 1:ncol(dm)) {
+  cat(names(dm)[i], ":", unique(dm[[i]]), "\n")
+}
+
+# Recodage standard :
+# 1 = Oui (garder)
+# 2 = Non → 0
+# 98 = Ne sait pas → NA
+# 99 = Pas de réponse → NA
+# 0 = Non (garder)
+
+dm[dm == 2] <- 0
+dm[dm == 98] <- NA
+dm[dm == 99] <- NA
+
+# Statistiques sur les valeurs manquantes
+cat("\nNombre de valeurs manquantes par variable :\n")
+na_counts <- colSums(is.na(dm))
+print(na_counts)
+cat("\nPourcentage de valeurs manquantes par variable :\n")
+print(round(na_counts / nrow(dm) * 100, 2))
+
+# Supprimer les lignes avec des valeurs manquantes
+dm <- na.omit(dm)
+
+# Nombre de lignes après nettoyage
+n_apres <- nrow(dm)
+cat("\nNombre de lignes après nettoyage :", n_apres, "\n")
+cat("Lignes supprimées :", n_avant - n_apres, 
+    "(", round((n_avant - n_apres) / n_avant * 100, 2), "%)\n")
+
+# Renommer les colonnes avec des noms descriptifs
+# IMPORTANT : Adapter selon le nombre de colonnes dans votre dataset
+if (ncol(dm) == 8) {
+  colnames(dm) <- c(
+    "WORRIED",   # Inquiet de ne pas avoir assez de nourriture
+    "HEALTHY",   # Incapable de manger des aliments sains et nutritifs
+    "FEWFOOD",   # A mangé seulement quelques types d'aliments
+    "SKIPPED",   # A dû sauter un repas
+    "ATELESS",   # A mangé moins qu'il ne pensait devoir manger
+    "RANOUT",    # Le ménage a manqué de nourriture
+    "HUNGRY",    # Est allé au lit avec faim
+    "WHLDAY"     # A passé toute une journée sans manger
+  )
+} else {
+  cat("\n⚠ ATTENTION : Le nombre de colonnes (", ncol(dm), ") ne correspond pas à 8.\n")
+  cat("Veuillez adapter le renommage des colonnes.\n")
+}
+
+cat("\nNoms des variables après renommage :\n")
+print(names(dm))
+
+# Vérifier que toutes les valeurs sont 0 ou 1
+cat("\nVérification du recodage :\n")
+for (i in 1:ncol(dm)) {
+  valeurs_uniques <- unique(dm[[i]])
+  cat(names(dm)[i], ":", valeurs_uniques, "\n")
+  if (!all(valeurs_uniques %in% c(0, 1))) {
+    warning(paste("Attention : ", names(dm)[i], "contient des valeurs autres que 0 et 1"))
+  }
+}
+```
+
+## 7. Statistiques descriptives finales
+
+```{r descriptive_stats}
+cat("\n=== STATISTIQUES DESCRIPTIVES FINALES ===\n\n")
+
+# Résumé
+dm_stat <- summary.data.frame(dm)
+print(dm_stat)
+
+# Tableau de fréquences après recodage
+cat("\n=== FRÉQUENCES APRÈS RECODAGE ===\n\n")
+freq_table <- data.frame(
+  Variable = names(dm),
+  Oui = colSums(dm == 1),
+  Non = colSums(dm == 0),
+  Pct_Oui = round(colSums(dm == 1) / nrow(dm) * 100, 2)
+)
+print(freq_table)
+
+# Nombre total de réponses
+nb_total_reponses <- nrow(dm)
+cat("\nNombre total de ménages analysés :", nb_total_reponses, "\n")
+
+# Score brut moyen (nombre moyen de "Oui" par ménage)
+score_moyen <- mean(rowSums(dm))
+cat("Score brut moyen (sur 8) :", round(score_moyen, 2), "\n")
+```
+
+## 8. Visualisation des réponses
+
+```{r visualisation, fig.width=10, fig.height=6}
+# Créer le dossier figures s'il n'existe pas
+dir.create("figures", showWarnings = FALSE)
+
+# Graphique en barres des fréquences
+freq_long <- freq_table %>%
+  select(Variable, Pct_Oui) %>%
+  mutate(Variable = factor(Variable, levels = Variable))
+
+ggplot(freq_long, aes(x = Variable, y = Pct_Oui)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  geom_text(aes(label = paste0(Pct_Oui, "%")), vjust = -0.5) +
+  labs(
+    title = "Pourcentage de réponses affirmatives par question FIES",
+    subtitle = paste("Mali 2018 - N =", nb_total_reponses, "ménages"),
+    x = "Questions FIES",
+    y = "Pourcentage de 'Oui' (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(face = "bold", size = 14),
+    plot.subtitle = element_text(size = 11)
+  )
+
+# Sauvegarder le graphique
+ggsave("figures/fies_frequencies_mali.png", width = 10, height = 6, dpi = 300)
+```
+
+## 9. Estimation du modèle de Rasch
+
+```{r rasch_model}
+cat("\n=== ESTIMATION DU MODÈLE DE RASCH ===\n\n")
+
+# Créer le dossier outputs s'il n'existe pas
+dir.create("outputs", showWarnings = FALSE)
+
+# Convertir toutes les colonnes en numérique
+dm <- data.frame(lapply(dm, as.numeric))
+
+# Vérifier qu'il n'y a que des 0 et 1
+cat("Vérification finale avant estimation du modèle :\n")
+for (i in 1:ncol(dm)) {
+  valeurs <- unique(dm[[i]])
+  cat(names(dm)[i], ":", valeurs, "\n")
+}
+
+# Estimation du modèle de Rasch avec RM.weights
+cat("\nLancement de l'estimation du modèle de Rasch...\n")
+
+tryCatch({
+  rr.mali <- RM.w(
+    dm, 
+    country = "Mali", 
+    .d = c(0.5, 7.5), 
+    write.file = TRUE
+  )
+  
+  cat("✓ Estimation du modèle de Rasch terminée avec succès.\n")
+  
+  # Sauvegarder les résultats dans un fichier Excel
+  write.xlsx(
+    rr.mali, 
+    file = "outputs/rasch_results_mali.xlsx"
+  )
+  
+  cat("✓ Résultats sauvegardés dans 'outputs/rasch_results_mali.xlsx'\n")
+  
+}, error = function(e) {
+  cat("❌ ERREUR lors de l'estimation du modèle de Rasch :\n")
+  cat(e$message, "\n\n")
+  cat("Vérifications à effectuer :\n")
+  cat("1. Le package RM.weights est-il correctement installé ?\n")
+  cat("2. Les données contiennent-elles uniquement des 0 et 1 ?\n")
+  cat("3. Y a-t-il au moins 8 colonnes (questions FIES) ?\n")
+  stop("Arrêt du script en raison de l'erreur.")
+})
+```
+
+## 10. Analyse des paramètres du modèle
+
+```{r rasch_parameters}
+cat("\n=== PARAMÈTRES DU MODÈLE DE RASCH ===\n\n")
+
+# Paramètres de sévérité des items (b)
+cat("Paramètres de sévérité des items (b) :\n")
+cat("(Plus la valeur est élevée, plus l'item est sévère)\n\n")
+severity_params <- data.frame(
+  Item = names(dm),
+  Severity = round(rr.mali$b, 3)
+)
+severity_params <- severity_params[order(severity_params$Severity), ]
+print(severity_params)
+
+# Visualisation des paramètres de sévérité
+ggplot(severity_params, aes(x = reorder(Item, Severity), y = Severity)) +
+  geom_point(size = 4, color = "darkred") +
+  geom_segment(aes(x = Item, xend = Item, y = 0, yend = Severity), 
+               color = "darkred", size = 1) +
+  coord_flip() +
+  labs(
+    title = "Paramètres de sévérité des items FIES",
+    subtitle = "Modèle de Rasch - Mali 2018",
+    x = "Items",
+    y = "Sévérité (b)"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 14)
+  )
+
+ggsave("figures/item_severity_mali.png", width = 8, height = 6, dpi = 300)
+
+# Statistiques d'ajustement
+cat("\n=== STATISTIQUES D'AJUSTEMENT ===\n\n")
+cat("Infit et Outfit pour chaque item :\n")
+fit_stats <- data.frame(
+  Item = names(dm),
+  Infit = round(rr.mali$infit, 3),
+  Outfit = round(rr.mali$outfit, 3)
+)
+print(fit_stats)
+cat("\nNote : Des valeurs entre 0.7 et 1.3 indiquent un bon ajustement.\n")
+```
+
+## 11. Analyse des résidus (validation du modèle)
+
+```{r residual_analysis, fig.width=10, fig.height=6}
+cat("\n=== ANALYSE DES RÉSIDUS ===\n\n")
+
+# ACP sur la matrice des résidus
+prcomp_res <- prcomp(rr.mali$mat.res)
+
+cat("Rotation des composantes principales :\n")
+print(round(prcomp_res$rotation, 3))
+
+cat("\nValeurs propres (variances) :\n")
+eigenvalues <- prcomp_res$sdev^2
+print(round(eigenvalues, 3))
+
+cat("\nPourcentage de variance expliquée :\n")
+variance_pct <- round(eigenvalues / sum(eigenvalues) * 100, 2)
+print(variance_pct)
+
+# Scree plot
+screeplot(prcomp(rr.mali$mat.res), type = "lines", 
+          main = "Scree Plot - Analyse des résidus",
+          xlab = "Composante principale",
+          ylab = "Variance")
+
+# Si la première composante explique < 20% de variance, le modèle unidimensionnel est validé
+cat("\nInterprétation : Si la 1ère composante explique < 20% de variance,")
+cat("\nle modèle unidimensionnel de Rasch est validé.\n")
+cat("Résultat : 1ère composante =", variance_pct[1], "%\n")
+
+if (variance_pct[1] < 20) {
+  cat("✓ Le modèle unidimensionnel est VALIDÉ.\n")
+} else {
+  cat("⚠ ATTENTION : Le modèle pourrait ne pas être strictement unidimensionnel.\n")
+}
+```
+
+## 12. Attribution des scores et prévalence
+
+```{r prevalence_discrete}
+cat("\n=== PRÉVALENCE PAR ATTRIBUTION DISCRÈTE ===\n\n")
+
+# Attribution probabiliste basée sur les scores bruts
+pp.mali <- prob.assign(rr.mali, rwthres = c(4, 7))
+
+cat("Seuils utilisés :\n")
+cat("- Seuil 1 (score brut 4) : Insécurité modérée ou sévère\n")
+cat("- Seuil 2 (score brut 7) : Insécurité sévère\n\n")
+
+# Tableau de prévalence
+tab_prevalence <- data.frame(
+  Seuil = c("Modéré ou sévère (≥4)", "Sévère (≥7)"),
+  Score_brut = c(4, 7),
+  Trait_latent = round(pp.mali$thres, 3),
+  Prevalence_pct = round(colSums(pp.mali$f) * 100, 2)
+)
+
+print(tab_prevalence)
+
+cat("\n=== PRÉVALENCE PAR CATÉGORIE ===\n\n")
+
+# Calculer les prévalences par catégorie
+secure <- sum(pp.mali$f[, 1]) * 100
+moderate <- (sum(pp.mali$f[, 2]) - sum(pp.mali$f[, 1])) * 100
+severe <- (1 - sum(pp.mali$f[, 2])) * 100
+
+cat_prevalence <- data.frame(
+  Categorie = c("Sécurité alimentaire", 
+                "Insécurité modérée", 
+                "Insécurité sévère"),
+  Prevalence_pct = round(c(secure, moderate, severe), 2)
+)
+
+print(cat_prevalence)
+
+# Graphique de prévalence
+ggplot(cat_prevalence, aes(x = Categorie, y = Prevalence_pct, fill = Categorie)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(Prevalence_pct, "%")), vjust = -0.5, size = 5) +
+  scale_fill_manual(values = c("green3", "orange", "red2")) +
+  labs(
+    title = "Prévalence de l'insécurité alimentaire au Mali",
+    subtitle = paste("Année 2018 - N =", nb_total_reponses, "ménages"),
+    x = "",
+    y = "Prévalence (%)"
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(face = "bold", size = 14),
+    axis.text.x = element_text(size = 11)
+  ) +
+  ylim(0, max(cat_prevalence$Prevalence_pct) * 1.1)
+
+ggsave("figures/prevalence_categories_mali.png", width = 10, height = 6, dpi = 300)
+```
+
+## 13. Équating itératif
+
+```{r equating}
+cat("\n=== ÉQUATING ITÉRATIF ===\n\n")
+
+ee.mali <- equating.fun(
+  rr.mali, 
+  spec.com1 = c(1:8),
+  spec.com2 = c(1:8), 
+  plot = TRUE
+)
+
+cat("Résultats de l'équating :\n")
+print(ee.mali)
+
+cat("\nNote : L'équating ajuste l'échelle du Mali pour la rendre comparable")
+cat("\navec l'échelle de référence globale FIES.\n")
+```
+
+## 14. Courbes caractéristiques des items (ICC)
+
+```{r icc, fig.width=12, fig.height=8}
+cat("\n=== COURBES CARACTÉRISTIQUES DES ITEMS (ICC) ===\n\n")
+
+mali_icc <- ICC.fun(rr.mali$b, plot = TRUE)
+
+cat("Les courbes ICC ont été générées.\n")
+```
+
+## 15. Résumé final
+
+```{r summary}
+cat("\n" , rep("=", 70), "\n", sep = "")
+cat("RÉSUMÉ DE L'ANALYSE FIES - MALI 2018\n")
+cat(rep("=", 70), "\n\n", sep = "")
+
+cat("Échantillon final :", nb_total_reponses, "ménages\n\n")
+
+cat("PRÉVALENCE DE L'INSÉCURITÉ ALIMENTAIRE :\n")
+print(cat_prevalence)
+
+cat("\n\nITEMS LES MOINS SÉVÈRES :\n")
+print(head(severity_params, 3))
+
+cat("\n\nITEMS LES PLUS SÉVÈRES :\n")
+print(tail(severity_params, 3))
+
+cat("\n\nVALIDATION DU MODÈLE :\n")
+cat("- Variance expliquée par la 1ère composante des résidus :", 
+    variance_pct[1], "%\n")
+if (variance_pct[1] < 20) {
+  cat("  ✓ Modèle unidimensionnel validé\n")
+}
+
+cat("\n\nFICHIERS GÉNÉRÉS :\n")
+cat("- outputs/rasch_results_mali.xlsx\n")
+cat("- figures/fies_frequencies_mali.png\n")
+cat("- figures/item_severity_mali.png\n")
+cat("- figures/prevalence_categories_mali.png\n")
+
+cat("\n", rep("=", 70), "\n", sep = "")
+```
+
+---
+
+# INSTRUCTIONS D'UTILISATION
+
+**ÉTAPES POUR UTILISER CE SCRIPT AVEC VOTRE .RData :**
+
+1. **Ouvrir ce fichier dans RStudio**
+
+2. **Vérifier le chemin du fichier .RData** (ligne 48)
+   - Actuellement : `"C:/Users/tchio/OneDrive/Bureau/FIES/.RData"`
+   - Modifier si nécessaire
+
+3. **Exécuter le script chunk par chunk** pour identifier :
+   - Le nom du dataset principal
+   - Les colonnes contenant les données FIES
+   - Le schéma de codage des réponses
+
+4. **Adapter si nécessaire** :
+   - Le renommage des colonnes (section 6)
+   - Les indices de colonnes FIES (section 4)
+
+5. **Cliquer sur "Knit"** pour générer le rapport complet
+
+**EN CAS DE PROBLÈME :**
+- Exécutez d'abord les sections 2 et 3 pour voir le contenu du .RData
+- Notez le nom exact du dataset et des colonnes
+- Adaptez manuellement les sections suivantes si besoin
