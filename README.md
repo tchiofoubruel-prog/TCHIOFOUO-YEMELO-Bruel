@@ -1,6 +1,6 @@
 # Hi there, I'm Tchiofouo Yemelo Bruel
 
-Development Economist | Econometrician | Data Scientist
+Economist | Econometrician | Data Scientist
 
 ---
 
