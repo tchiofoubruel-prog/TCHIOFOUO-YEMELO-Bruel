@@ -8,8 +8,10 @@ set more off
 
 
 ***** Creation of globals to indicate the source of data and backup ***** 
-global sourcedata "C:\Users\bruel\Desktop\Econométrie 2024\data" 
-global savedata "C:\Users\bruel\Desktop\Econométrie 2024\Résultats"
+* Source data is not included in this repository (see root README).
+* Point these at your own local copy before running.
+global sourcedata "./data"
+global savedata "./output"
 
 ***** Creation of a log file to record results every time the do-file is run: The "log file" in Stata is a file where all outputs and commands executed during a Stata session are recorded ***** 
 log using "$savedata\log2024.log", replace

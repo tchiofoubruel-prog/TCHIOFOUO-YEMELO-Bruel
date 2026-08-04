@@ -1,0 +1,47 @@
+# Save as: .github/workflows/render-check.yml
+#
+# Important scope note: this is a SYNTAX check, not a full render. The .Rmd
+# files load real survey/institutional data that is deliberately not
+# committed to this repository (see the data governance note in the root
+# README) -- a full rmarkdown::render() would fail on every run for a reason
+# that has nothing to do with code quality, which would just train you to
+# ignore a permanently red check. Instead this extracts the R code from each
+# .Rmd with knitr::purl() and parses it (parse(), not source()/eval()), which
+# catches real syntax errors and typos without needing the data present. If
+# you later add a small synthetic/sample dataset, switch step "Check" below
+# to rmarkdown::render() for a stronger guarantee.
+name: Check R Markdown syntax
+
+on:
+  push:
+    paths:
+      - "r-projects/**/*.Rmd"
+  pull_request:
+    paths:
+      - "r-projects/**/*.Rmd"
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: "4.3.2"
+
+      - name: Install knitr
+        run: |
+          Rscript -e 'install.packages("knitr", repos = "https://cloud.r-project.org")'
+
+      - name: Purl and parse every .Rmd (catches syntax errors, not data issues)
+        run: |
+          find r-projects -name "*.Rmd" -print0 | while IFS= read -r -d '' f; do
+            echo "Checking: $f"
+            Rscript -e "
+              tmp <- tempfile(fileext = '.R')
+              knitr::purl('$f', output = tmp, quiet = TRUE)
+              tryCatch(parse(tmp), error = function(e) { message('SYNTAX ERROR in $f: ', e); quit(status = 1) })
+            " || exit 1
+          done

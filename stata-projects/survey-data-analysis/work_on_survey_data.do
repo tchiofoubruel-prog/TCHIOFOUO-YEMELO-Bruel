@@ -15,8 +15,10 @@ set more off
 
 // 2) Indicate the data source and the backup location.
 // - Create two "globals" to indicate where the data is and where to save the results.
-global sourcedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Data"
-global savedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Results"
+* Source data is not included in this repository (see root README).
+* Point these at your own local copy before running.
+global sourcedata "./data"
+global savedata "./output"
 // - Create a log file to record the results every time the do-file is run. (Good practice: assign the current date to the log-file).
 local date 20191022
 log using "$savedata\log`date'.log", replace
@@ -123,8 +125,10 @@ set more off
 // 2) Indicate the data source and saving location.
 // - Create two global variables to specify where the data is located and where to save the results.
 // - Create a log file to record the results each time the do-file is run. (Good practice: assign the log-file the current date).
-global sourcedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Data"
-global savedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Results"
+* Source data is not included in this repository (see root README).
+* Point these at your own local copy before running.
+global sourcedata "./data"
+global savedata "./output"
 local date 20190313
 log using "$savedata\log`date'.log", replace
 
@@ -259,8 +263,10 @@ set more off
 // 2) Indicate the source of the data and the location for saving the results.
 // - Create two "globals" to indicate where the data is located and where to save the results.
 // - Create a log file to record results each time the do-file is run. (Good practice: assign the current date to the log file).
-global sourcedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Data"
-global savedata "C:\Users\bruel\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Results"
+* Source data is not included in this repository (see root README).
+* Point these at your own local copy before running.
+global sourcedata "./data"
+global savedata "./output"
 local date 20190313
 log using "$savedata\log`date'.log", replace
 

@@ -1,0 +1,29 @@
+# Data (never commit source data; see README data governance note)
+/data/
+/output/
+*.dta.gz
+*.csv.gz
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv/
+.venv/
+*.egg-info/
+
+# Stata
+*.log
+*.smcl
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
