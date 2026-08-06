@@ -2,7 +2,12 @@
 
 Applied economics code: econometric replications in Stata, reproducible analyses in R Markdown, and Python notebooks combining geospatial data construction with machine learning forecasting. Written as coursework, research assistant work, and independent replication exercises between 2023 and 2025.
 
+**Start here:** [`method-demos/`](method-demos/) — two self-contained, executed notebooks (Monte Carlo + Sobol sensitivity; interpretable ML with honest validation) that demonstrate on synthetic data the methods used in my confidential professional work. Then [`python-projects/data-science/`](python-projects/data-science/) for the largest original project (a 1901–2023 climate × mining panel built from CRU NetCDF data).
+
 ## Contents
+
+### `method-demos/`
+Reproducible method demonstrations on synthetic data (see the folder README): Monte Carlo cost-benefit with Sobol indices, and an interpretable ML pipeline with a leakage-free evaluation design.
 
 ### `stata-projects/`
 Five self-contained projects, each in its own folder with a short README describing the data and method.

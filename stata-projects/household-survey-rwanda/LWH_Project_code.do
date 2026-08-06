@@ -1,3 +1,5 @@
+* Paths use the repository convention: ./data for inputs, ./output for results.
+* Point them at your local copies before running (source data is not distributed; see root README).
 /*********************************************************************
  Statistical Software Test 2025 Do-File
  Author: TCHIOFOUO YEMELO Bruel
@@ -17,7 +19,7 @@ set more off
  *=============================================================;
 * Setup: Define directory globals and import raw data (Task 1);
 *=============================================================;
-global base_dir "C:\Users\tchio\OneDrive\Bureau\2025_Statistical_Software_Test"
+global base_dir "./data"
 global data_dir    "$base_dir/data"
 global results_dir "$base_dir/results"
 global dofiles_dir "$base_dir/dofiles"

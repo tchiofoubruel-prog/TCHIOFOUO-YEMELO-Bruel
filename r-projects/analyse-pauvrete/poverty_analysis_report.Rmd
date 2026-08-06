@@ -1,0 +1,1117 @@
+#II)
+
+
+---
+title: "script poverty report on Benin, Mali, Burkina Faso, Togo"
+output: html_document
+---
+##This script performs poverty analysis using multiple indices for four different countries. It merges household and welfare data, defines functions to calculate poverty indices (FGT, Watts, Chakravarty), computes these indices for different subgroups, and compares poverty levels across these countries using stochastic dominance tests. The results are organized and stored for further analysis. It is a group work done during the third year of barchelor's degree in 2022/2023.
+
+Benin
+
+Data Importation: This code loads two datasets related to Benin in 2018 using the haven package and displays them. It then creates a table combining "Raw score," "Latent trait," and "Prevalence," with the latter calculated as the column sums of a specific variable (pp.mali$f). The table is assigned row names "Thres 1" and "Thres 2" and displayed.
+```{r installation}
+# Case of Benin
+library(haven)
+ehcvm_welfare_ben2018 <- read_dta("ehcvm_welfare_ben2018.dta") 
+View(ehcvm_welfare_ben2018)
+library(haven)
+ehcvm_individu_ben2018 <- read_dta("ehcvm_individu_ben2018.dta")
+View(ehcvm_individu_ben2018)
+
+# Prevalence table with thresholds
+tab = cbind("Raw score" = c(4, 7), "Latent trait" = pp.mali$thres, 
+"Prevalence" = colSums(pp.mali$f))
+rownames(tab) = c("Thres 1", "Thres 2")
+tab
+
+
+ 
+```
+
+
+```{r definition of dataframes }
+# Case of Benin
+datw = ehcvm_welfare_ben2018
+dati = ehcvm_individu_ben2018
+
+datbn = merge(dati,datw[,c("hhid","zref","pcexp","hhsize","heduc","hdiploma","hage","hcsp","hgender","hbranch")], by="hhid")
+View(datbn)
+
+```
+
+## construction of functions 
+
+```{r definition of poverty line}
+lpa = function(datbn){ datbn$zref[1] }
+```
+
+
+```{r Creation of Foster indices}
+
+FGT = function(datbn,z,a) {
+  
+  y=datbn$pcexp
+  w=datbn$hhweight
+  z=datbn$zref
+  
+  round(sum((w*(1-y/z)^a)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+  
+}
+```
+
+```{r Creation of Watts indices }
+
+Watts = function(datbn,z) {
+  
+  y=datbn$pcexp
+  w=datbn$hhweight
+  z=datbn$zref
+  
+   round(sum(w*log(z/y)*(y<=z))/sum(w),2)
+   
+}
+```
+
+```{r Creation of Chakravarty indices}
+
+Chakravarty = function(datbn,z,u) {
+  
+  y=datbn$pcexp
+  w=datbn$hhweight
+  z=datbn$zref
+   resultat <- round(sum(w*(1-(y/z)^u)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+          return(resultat)
+  
+}
+```
+
+##Calculating Benin indices 
+
+```{r National level}
+
+# Definition of a matrix to store the data
+mat = matrix(0, ncol = 5, nrow = 1)
+
+# Calculation of the indices
+fgt = sapply(0:2, function(x) round(FGT(datbn, z, x), 2))
+watts = round(Watts(datbn, z), 2)
+chakravarty = round(Chakravarty(datbn, z, 0.5), 2)
+
+mat[1, ] = c(fgt, watts, chakravarty)
+ben_nat = data.frame(mat, check.names = TRUE)
+names(ben_nat) <- c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+          
+```
+
+```{r At the life level }
+
+  # Create a list of unique values of the specified attribute
+milieu_vals = sort(unique(datbn[["milieu"]]))
+
+# Initialize a matrix to store the results
+mat_mil = matrix(0, ncol = 5, nrow = length(milieu_vals))
+
+# Loop over the attribute values to calculate the indices for each group
+for (i in seq_along(milieu_vals)) {
+  # Subset the data for the current attribute
+  mil = subset(datbn, datbn[["milieu"]] == milieu_vals[i])
+  
+  # Calculate the indices for the subset of data
+  fgt = sapply(0:2, function(x) round(FGT(mil, z, x), 2))
+  watts = round(Watts(mil, z), 2)
+  chakravarty = round(Chakravarty(mil, z, 0.5), 2)
+  
+  # Store the results in the matrix
+  mat_mil[i, ] = c(fgt, watts, chakravarty)
+}
+
+ben_mil = data.frame(mat_mil, check.names = TRUE)
+names(ben_mil) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r  regions level}
+
+reg_vals = sort(unique(datbn[["region"]]))
+mat_reg = matrix(0,ncol =5,nrow=length(reg_vals))
+
+for (i in seq_along(reg_vals)) {
+  
+  reg = subset(datbn,datbn[["region"]]==reg_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(reg, z, x), 2))
+        watts= round(Watts(reg, z), 2)
+        chakravarty =round(Chakravarty(reg, z, 0.5 ), 2)
+        
+  mat_reg[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+ben_reg = data.frame(mat_reg,check.names = TRUE)
+names(ben_reg) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r sex level }
+
+sex_vals = sort(unique(datbn[["hgender"]]))
+mat_sex = matrix(0,ncol =5,nrow=length(sex_vals))
+
+for (i in seq_along(sex_vals)) {
+  
+  sex = subset(datbn,datbn[["hgender"]]==sex_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(sex, z, x), 2))
+        watts= round(Watts(sex, z), 2)
+        chakravarty =round(Chakravarty(sex, z, 0.5 ), 2)
+        
+  mat_sex[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+ben_sex = data.frame(mat_sex,check.names = TRUE)
+names(ben_sex) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r At the household level }
+
+men_vals = sort(unique(datbn[["hhsize"]]))
+mat_men = matrix(0,ncol =5,nrow=length(men_vals))
+
+for (i in seq_along(men_vals)) {
+  
+  men = subset(datbn,datbn[["hhsize"]]==men_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(men, z, x), 2))
+        watts= round(Watts(men, z), 2)
+        chakravarty =round(Chakravarty(men, z, 0.5 ), 2)
+        
+  mat_men[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+ben_men = data.frame(mat_men,check.names = TRUE)
+names(ben_men) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r education level }
+
+educ_vals = sort(unique(datbn[["heduc"]]))
+mat_educ = matrix(0,ncol =5,nrow=length(educ_vals))
+
+for (i in seq_along(educ_vals)) {
+  
+  educ = subset(datbn,datbn[["heduc"]]==educ_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(educ, z, x), 2))
+        watts= round(Watts(educ, z), 2)
+        chakravarty =round(Chakravarty(educ, z, 0.5 ), 2)
+        
+  mat_educ[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+ben_educ = data.frame(mat_educ,check.names = TRUE)
+names(ben_educ) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r sector of activity level of  CM}
+
+bra_vals = sort(unique(datbn[["hbranch"]]))
+mat_bra = matrix(0,ncol =5,nrow=length(bra_vals))
+
+for (i in seq_along(bra_vals)) {
+  
+  bra = subset(datbn,datbn[["hbranch"]]==bra_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(bra, z, x), 2))
+        watts= round(Watts(bra, z), 2)
+        chakravarty =round(Chakravarty(bra, z, 0.5 ), 2)
+        
+  mat_bra[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+ben_bra= data.frame(mat_bra,check.names = TRUE)
+names(ben_bra) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r age level of CM}
+
+age_vals = sort(unique(datbn[["hage"]]))
+mat_age = matrix(0,ncol =5,nrow=length(age_vals))
+
+for (i in seq_along(age_vals)) {
+  
+  age = subset(datbn,datbn[["hage"]]==age_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT(age, z, x), 2))
+        watts= round(Watts(bra, z), 2)
+        chakravarty =round(Chakravarty(age, z, 0.5 ), 2)
+        
+  mat_age[i,]= c(fgt, watts, chakravarty)
+  
+  
+}
+
+ben_age= data.frame(mat_age,check.names = TRUE)
+names(ben_age) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+
+```
+
+# Burkina Faso 
+
+```{r importing dataset}
+library(haven)
+ehcvm_individu_bfa2018 <- read_sav("BURKINA /ehcvm_individu_bfa2018.sav")
+View(ehcvm_individu_bfa2018)
+
+ehcvm_welfare_bfa2018 <- read_sav("BURKINA /ehcvm_welfare_bfa2018.sav")
+View(ehcvm_welfare_bfa2018)
+
+
+```
+
+```{r definition of dataframe }
+
+datwbfa = ehcvm_welfare_bfa2018
+datibfa  = ehcvm_individu_bfa2018
+
+datbfa = merge(datibfa,datwbfa[,c("hhid","zref","pcexp","hhsize","heduc","hdiploma","hage","hcsp","hgender","hbranch")],by="hhid")
+
+```
+## defining functions for burkina 
+
+```{r  Foster indices}
+FGT_bfa = function(datbfa,z,a) {
+  
+  y=datbfa$pcexp
+  w=datbfa$hhweight
+  z=datbfa$zref
+  
+  round(sum((w*(1-y/z)^a)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+  
+}
+
+```
+
+```{r Watts }
+Watts_bfa = function(datbfa,z) 
+  
+{
+  
+  y=datbfa$pcexp
+  w=datbfa$hhweight
+  z=datbfa$zref
+  
+   round(sum(w*log(z/y)*(y<=z))/sum(w),2)
+}
+
+```
+
+```{r Chakravarty}
+
+Chakravarty_bfa = function(datbfa,z,u) 
+  
+{
+  
+  y=datbfa$pcexp
+  w=datbfa$hhweight
+  z=datbfa$zref
+ resultat =  round(sum(w*(1-(y/z)^u)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+          return(resultat)
+}
+
+```
+
+## calculing  indices 
+
+```{r national level}
+
+
+matbfa = matrix(0,ncol=5,nrow=1)
+
+fgt = sapply(0:2,function(x) round(FGT_bfa(datbfa,z,x),2))
+watts = round(Watts_bfa(datbfa,z),2)
+chakravarty = round(Chakravarty_bfa(datbfa,z,0.5),2)
+
+matbfa[1,] = c(fgt,watts,chakravarty)
+bfa_nat = data.frame(matbfa,check.names =TRUE)
+names(bfa_nat) <- c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r life level}
+
+milieubfa_vals = sort(unique(datbfa[["milieu"]]))
+mat_milbfa= matrix(0, ncol = 5, nrow = length(milieubfa_vals))
+        
+for (i in seq_along(milieubfa_vals)) {
+         
+ milbfa =  subset(datbfa, datbfa[["milieu"]] == milieubfa_vals[i])
+          
+      fgt = sapply(0:2, function(x) round(FGT_bfa(milbfa, z, x), 2))
+      watts= round(Watts_bfa(milbfa, z), 2)
+      chakravarty =round(Chakravarty_bfa(milbfa, z, 0.5 ), 2)
+      
+       mat_milbfa[i, ] = c(fgt, watts, chakravarty)
+          
+        }
+
+  bfa_mil = data.frame(mat_milbfa,check.names = TRUE)
+  names(bfa_mil) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r  region level}
+
+regbfa_vals = sort(unique(datbfa[["region"]]))
+mat_regbfa = matrix(0,ncol =5,nrow=length(regbfa_vals))
+
+for (i in seq_along(regbfa_vals)) {
+  
+  regbfa = subset(datbfa,datbfa[["region"]]==regbfa_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_bfa(regbfa, z, x), 2))
+        watts= round(Watts_bfa(regbfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(regbfa, z, 0.5 ), 2)
+        
+  mat_regbfa[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+bfa_reg = data.frame(mat_regbfa,check.names = TRUE)
+names(bfa_reg) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r sex level}
+
+sexbfa_vals = sort(unique(datbfa[["hgender"]]))
+mat_sexbfa = matrix(0,ncol =5,nrow=length(sexbfa_vals))
+
+for (i in seq_along(sexbfa_vals)) {
+  
+  sexbfa = subset(datbfa,datbfa[["hgender"]]==sexbfa_vals[i])
+
+        fgt = sapply(0:2, function(x) round(FGT_bfa(sexbfa, z, x), 2))
+        watts= round(Watts_bfa(sexbfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(sexbfa, z, 0.5 ), 2)
+        
+  mat_sexbfa[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+bfa_sex = data.frame(mat_sexbfa,check.names = TRUE)
+names(bfa_sex) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r house hold level}
+
+menbfa_vals = sort(unique(datbfa[["hhsize"]]))
+mat_menbfa = matrix(0,ncol =5,nrow=length(menbfa_vals))
+
+for (i in seq_along(menbfa_vals)) {
+  
+  menbfa = subset(datbfa,datbfa[["hhsize"]]==menbfa_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_bfa(menbfa, z, x), 2))
+        watts= round(Watts_bfa(menbfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(menbfa, z, 0.5 ), 2)
+        
+  mat_menbfa[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+bfa_men = data.frame(mat_menbfa,check.names = TRUE)
+names(bfa_men) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r education level}
+educbfa_vals = sort(unique(datbfa[["heduc"]]))
+mat_educbfa = matrix(0,ncol =5,nrow=length(educbfa_vals))
+
+for (i in seq_along(educbfa_vals)) {
+  
+  educbfa = subset(datbfa,datbfa[["heduc"]]==educbfa_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_bfa(educbfa, z, x), 2))
+        watts= round(Watts_bfa(educbfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(educbfa, z, 0.5 ), 2)
+        
+  mat_educbfa[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+bfa_educ = data.frame(mat_educbfa,check.names = TRUE)
+names(bfa_educ) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r  branche of activity}
+
+brabfa_vals = sort(unique(datbfa[["hbranch"]]))
+mat_brabfa = matrix(0,ncol =5,nrow=length(brabfa_vals))
+
+for (i in seq_along(brabfa_vals)) {
+  
+  brabfa = subset(datbfa,datbfa[["hbranch"]]==brabfa_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_bfa(brabfa, z, x), 2))
+        watts= round(Watts_bfa(brabfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(brabfa, z, 0.5 ), 2)
+        
+  mat_brabfa[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+bfa_bra= data.frame(mat_brabfa,check.names = TRUE)
+names(bfa_bra) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r age level of CM}
+
+agebfa_vals = sort(unique(datbfa[["hage"]]))
+matbfa_age = matrix(0,ncol =5,nrow=length(agebfa_vals))
+
+for (i in seq_along(agebfa_vals)) {
+  
+  agebfa = subset(datbfa,datbfa[["hage"]]==agebfa_vals[i])
+
+        fgt = sapply(0:2, function(x) round(FGT_bfa(agebfa, z, x), 2))
+        watts= round(Watts_bfa(agebfa, z), 2)
+        chakravarty =round(Chakravarty_bfa(agebfa, z, 0.5 ), 2)
+        
+  matbfa_age[i,]= c(fgt, watts, chakravarty)
+  
+  
+}
+
+bfa_age = data.frame(matbfa_age,check.names = TRUE)
+names(bfa_age) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+# Niger 
+
+
+```{r importing dataset}
+
+ehcvm_welfare_ner2018 <- read_dta("nigr /ehcvm_welfare_ner2018.dta")
+View(ehcvm_welfare_ner2018)
+
+ehcvm_individu_ner2018 <- read_dta("nigr /ehcvm_individu_ner2018.dta")
+View(ehcvm_individu_ner2018)
+
+```
+
+```{r definition of dataframe}
+
+datwn = ehcvm_welfare_ner2018
+datin  = ehcvm_individu_ner2018
+
+datnig = merge(datin,datwn[,c("hhid","zref","pcexp","hhsize","heduc","hdiploma","hage","hcsp","hgender","hbranch")],by="hhid")
+
+```
+
+## definition of functions 
+
+```{r definting poverty line }
+
+lpan = function(datnig){ datnig$zref[1] }
+```
+
+```{r   Foster indices }
+
+FGT_n = function(datnig,z,a) {
+  
+  y=datnig$pcexp
+  w=datnig$hhweight
+  z=datnig$zref
+  
+  round(sum((w*(1-y/z)^a)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+  
+}
+```
+
+```{r  Watts }
+Watts_n = function(datnig,z) {
+  
+  y=datnig$pcexp
+  w=datnig$hhweight
+  z=datnig$zref
+  
+   round(sum(w*log(z/y)*(y<=z))/sum(w),2)
+   
+}
+
+```
+
+```{r Chakravarty }
+
+Chakravarty_n = function(datnig,z,u) {
+  
+  y=datnig$pcexp
+  w=datnig$hhweight
+  z=datnig$zref
+ resultat =  round(sum(w*(1-(y/z)^u)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+          return(resultat)
+  
+}
+
+```
+
+## calculating indices 
+
+```{r  national level}
+# Definition of a matrix to store the data 
+matn = matrix(0, ncol=5, nrow=1)
+
+# Calculation of indices 
+fgt = sapply(0:2, function(x) round(FGT_n(datnig, z, x), 2))
+watts = round(Watts_n(datnig, z), 2)
+chakravarty = round(Chakravarty_n(datnig, z, 0.5), 2)
+
+matn[1,] = c(fgt, watts, chakravarty)
+nig_nat = data.frame(matn, check.names = TRUE)
+names(nig_nat) <- c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r living environment}
+
+# Create a list of unique values for the specified attribute
+milieun_vals = sort(unique(datnig[["milieu"]]))
+
+# Initialize a matrix to store the results
+mat_miln = matrix(0, ncol = 5, nrow = length(milieun_vals))
+
+# Loop over the attribute values to calculate indices for each group
+for (i in seq_along(milieun_vals)) {
+  # Subset of data for the current attribute
+  miln = subset(datnig, datnig[["milieu"]] == milieun_vals[i])
+  
+  # Calculate indices for the data subset
+  fgt = sapply(0:2, function(x) round(FGT_n(miln, z, x), 2))
+  watts = round(Watts_n(miln, z), 2)
+  chakravarty = round(Chakravarty_n(miln, z, 0.5), 2)
+  
+  # Store the results in the matrix
+  mat_miln[i, ] = c(fgt, watts, chakravarty)
+}
+
+# Create a data frame for the results
+nig_mil = data.frame(mat_miln, check.names = TRUE)
+names(nig_mil) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+   
+```
+
+```{r region level}
+
+regn_vals = sort(unique(datnig[["region"]]))
+mat_regn = matrix(0,ncol =5,nrow=length(regn_vals))
+
+for (i in seq_along(regn_vals)) {
+  
+  regn = subset(datnig,datnig[["region"]]==regn_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_n(regn, z, x), 2))
+        watts= round(Watts_n(regn, z), 2)
+        chakravarty =round(Chakravarty_n(regn, z, 0.5 ), 2)
+        
+  mat_regn[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+nig_reg = data.frame(mat_regn,check.names = TRUE)
+names(nig_reg) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r sex level}
+
+sexn_vals = sort(unique(datnig[["hgender"]]))
+mat_sexn = matrix(0,ncol =5,nrow=length(sexn_vals))
+
+for (i in seq_along(sexn_vals)) {
+  
+  sexn = subset(datnig,datnig[["hgender"]]==sexn_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_n(sexn, z, x), 2))
+        watts= round(Watts_n(sexn, z), 2)
+        chakravarty =round(Chakravarty_n(sexn, z, 0.5 ), 2)
+        
+  mat_sexn[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+nig_sex = data.frame(mat_sexn,check.names = TRUE)
+names(nig_sex) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r Household size }
+
+menn_vals = sort(unique(datnig[["hhsize"]]))
+mat_menn = matrix(0,ncol =5,nrow=length(menn_vals))
+
+for (i in seq_along(menn_vals)) {
+  
+  menn = subset(datnig,datnig[["hhsize"]]==menn_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_n(menn, z, x), 2))
+        watts= round(Watts_n(menn, z), 2)
+        chakravarty =round(Chakravarty_n(menn, z, 0.5 ), 2)
+        
+  mat_menn[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+nig_men = data.frame(mat_menn,check.names = TRUE)
+names(nig_men) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r education level}
+
+educn_vals = sort(unique(datnig[["heduc"]]))
+mat_educn = matrix(0,ncol =5,nrow=length(educn_vals))
+
+for (i in seq_along(educn_vals)) {
+  
+  educn = subset(datnig,datnig[["heduc"]]==educn_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_n(educn, z, x), 2))
+        watts= round(Watts_n(educn, z), 2)
+        chakravarty =round(Chakravarty_n(educn, z, 0.5 ), 2)
+        
+  mat_educn[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+nig_educ = data.frame(mat_educn,check.names = TRUE)
+names(nig_educ) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r branche of d'activity}
+
+bran_vals = sort(unique(datnig[["hbranch"]]))
+mat_bran = matrix(0,ncol =5,nrow=length(bran_vals))
+
+for (i in seq_along(bran_vals)) {
+  
+  bran = subset(datnig,datnig[["hbranch"]]==bran_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_n(bran, z, x), 2))
+        watts= round(Watts_n(bran, z), 2)
+        chakravarty =round(Chakravarty_n(bran, z, 0.5 ), 2)
+        
+  mat_bran[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+nig_bra= data.frame(mat_bran,check.names = TRUE)
+names(nig_bra) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r age level}
+
+agen_vals = sort(unique(datnig[["hage"]]))
+matn_age = matrix(0,ncol =5,nrow=length(agen_vals))
+
+for (i in seq_along(agen_vals)) {
+  
+  agen = subset(datnig,datnig[["hage"]]==agen_vals[i])
+
+        fgt = sapply(0:2, function(x) round(FGT_n(agen, z, x), 2))
+        watts= round(Watts_n(agen, z), 2)
+        chakravarty =round(Chakravarty_n(agen, z, 0.5 ), 2)
+        
+  matn_age[i,]= c(fgt, watts, chakravarty)
+  
+  
+}
+
+nig_age= data.frame(matn_age,check.names = TRUE)
+names(nig_age) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+
+
+```
+
+# Togo 
+
+ 
+```{r importing dataset}
+
+ehcvm_welfare_tgo2018 <- read_dta("TOGO /ehcvm_welfare_tgo2018.dta")
+View(ehcvm_welfare_tgo2018)
+ehcvm_individu_tgo2018 <- read_dta("TOGO /ehcvm_individu_tgo2018.dta")
+View(ehcvm_individu_tgo2018)
+
+```
+
+```{r creation of dataframe}
+
+datwtgo = ehcvm_welfare_tgo2018
+datitgo  = ehcvm_individu_tgo2018
+
+dattgo = merge(datitgo,datwtgo[,c("hhid","zref","pcexp","hhsize","heduc","hdiploma","hage","hcsp","hgender","hbranch")],by="hhid")
+
+```
+## définition des fonctions pour le togo
+
+```{r FOSTER indices}
+
+FGT_tgo = function(dattgo,z,a) {
+  
+  y=dattgo$pcexp
+  w=dattgo$hhweight
+  z=dattgo$zref
+  
+  round(sum((w*(1-y/z)^a)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+  
+}
+
+```
+
+```{r Watts}
+
+Watts_tgo = function(dattgo,z) 
+  
+{
+  
+  y=dattgo$pcexp
+  w=dattgo$hhweight
+  z=dattgo$zref
+  
+   round(sum(w*log(z/y)*(y<=z))/sum(w),2)
+}
+
+```
+
+```{r Chakravarty}
+Chakravarty_tgo = function(dattgo,z,u) 
+  
+{
+  
+  y=dattgo$pcexp
+  w=dattgo$hhweight
+  z=dattgo$zref
+ resultat =  round(sum(w*(1-(y/z)^u)*(y<=z),na.rm = TRUE)*100/sum(w,na.rm = TRUE),2)
+          return(resultat)
+}
+
+```
+
+## calculating  indices 
+
+```{r  national levell}
+
+mattgo = matrix(0,ncol=5,nrow=1)
+
+fgt = sapply(0:2,function(x) round(FGT_tgo(dattgo,z,x),2))
+watts = round(Watts_tgo(dattgo,z),2)
+chakravarty = round(Chakravarty_tgo(dattgo,z,0.5),2)
+
+mattgo[1,] = c(fgt,watts,chakravarty)
+tgo_nat = data.frame(mattgo,check.names =TRUE)
+names(tgo_nat) <- c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r life enviroment}
+
+milieutgo_vals = sort(unique(dattgo[["milieu"]]))
+mat_miltgo= matrix(0, ncol = 5, nrow = length(milieutgo_vals))
+        
+for (i in seq_along(milieutgo_vals)) {
+         
+ miltgo =  subset(dattgo, dattgo[["milieu"]] == milieutgo_vals[i])
+          
+      fgt = sapply(0:2, function(x) round(FGT_tgo(miltgo, z, x), 2))
+      watts= round(Watts_tgo(miltgo, z), 2)
+      chakravarty =round(Chakravarty_tgo(miltgo, z, 0.5 ), 2)
+      
+       mat_miltgo[i, ] = c(fgt, watts, chakravarty)
+          
+        }
+
+  tgo_mil = data.frame(mat_miltgo,check.names = TRUE)
+  names(tgo_mil) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r region level}
+
+regtgo_vals = sort(unique(dattgo[["region"]]))
+mat_regtgo = matrix(0,ncol =5,nrow=length(regtgo_vals))
+
+for (i in seq_along(regtgo_vals)) {
+  
+  regtgo = subset(dattgo,dattgo[["region"]]==regtgo_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_tgo(regtgo, z, x), 2))
+        watts= round(Watts_tgo(regtgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(regtgo, z, 0.5 ), 2)
+        
+  mat_regtgo[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+tgo_reg = data.frame(mat_regtgo,check.names = TRUE)
+names(tgo_reg) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r sex level}
+
+sextgo_vals = sort(unique(dattgo[["hgender"]]))
+mat_sextgo = matrix(0,ncol =5,nrow=length(sextgo_vals))
+
+for (i in seq_along(sextgo_vals)) {
+  
+  sextgo = subset(dattgo,dattgo[["hgender"]]==sextgo_vals[i])
+
+        fgt = sapply(0:2, function(x) round(FGT_tgo(sextgo, z, x), 2))
+        watts= round(Watts_tgo(sextgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(sextgo, z, 0.5 ), 2)
+        
+  mat_sextgo[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+tgo_sex = data.frame(mat_sextgo,check.names = TRUE)
+names(tgo_sex) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+
+```{r household level}
+
+mentgo_vals = sort(unique(dattgo[["hhsize"]]))
+mat_mentgo = matrix(0,ncol =5,nrow=length(mentgo_vals))
+
+for (i in seq_along(mentgo_vals)) {
+  
+  mentgo = subset(dattgo,dattgo[["hhsize"]]==mentgo_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_tgo(mentgo, z, x), 2))
+        watts= round(Watts_tgo(mentgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(mentgo, z, 0.5 ), 2)
+        
+  mat_mentgo[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+tgo_men = data.frame(mat_mentgo,check.names = TRUE)
+names(tgo_men) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r education level}
+eductgo_vals = sort(unique(dattgo[["heduc"]]))
+mat_eductgo = matrix(0,ncol =5,nrow=length(eductgo_vals))
+
+for (i in seq_along(eductgo_vals)) {
+  
+  eductgo = subset(dattgo,dattgo[["heduc"]]==eductgo_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_tgo(eductgo, z, x), 2))
+        watts= round(Watts_tgo(eductgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(eductgo, z, 0.5 ), 2)
+        
+  mat_eductgo[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+tgo_educ = data.frame(mat_eductgo,check.names = TRUE)
+names(tgo_educ) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r  branche of activité}
+
+bratgo_vals = sort(unique(dattgo[["hbranch"]]))
+mat_bratgo = matrix(0,ncol =5,nrow=length(bratgo_vals))
+
+for (i in seq_along(bratgo_vals)) {
+  
+  bratgo = subset(dattgo,dattgo[["hbranch"]]==bratgo_vals[i])
+  
+        fgt = sapply(0:2, function(x) round(FGT_tgo(bratgo, z, x), 2))
+        watts= round(Watts_tgo(bratgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(bratgo, z, 0.5 ), 2)
+        
+  mat_bratgo[i,]= c(fgt, watts, chakravarty)
+  
+}
+
+tgo_bra= data.frame(mat_bratgo,check.names = TRUE)
+names(tgo_bra) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+```
+
+```{r age level of CM}
+
+agetgo_vals = sort(unique(dattgo[["hage"]]))
+mattgo_age = matrix(0,ncol =5,nrow=length(agetgo_vals))
+
+for (i in seq_along(agetgo_vals)) {
+  
+  agetgo = subset(dattgo,dattgo[["hage"]]==agetgo_vals[i])
+
+        fgt = sapply(0:2, function(x) round(FGT_tgo(agetgo, z, x), 2))
+        watts= round(Watts_tgo(agetgo, z), 2)
+        chakravarty =round(Chakravarty_tgo(agetgo, z, 0.5 ), 2)
+        
+  mattgo_age[i,]= c(fgt, watts, chakravarty)
+  
+  
+}
+
+tgo_age = data.frame(mattgo_age,check.names = TRUE)
+names(tgo_age) = c("Incidence", "Depth", "Severity", "Watts", "Chakravarty")
+
+```
+#Stochastic dominance
+
+
+```{r Stochastic dominance at national :}
+# Definition of poverty thresholds
+zben = 246542
+zbfa = 194629
+znig = 181782
+ztgo = 273618
+
+# Creation of poverty line vectors
+vz_ben = sort(unique(datbn$pcexp[datbn$pcexp <= zben]))
+vz_bfa = sort(unique(datbfa$pcexp[datbfa$pcexp <= zbfa]))
+vz_nig = sort(unique(datnig$pcexp[datnig$pcexp <= znig]))
+vz_tgo = sort(unique(dattgo$pcexp[dattgo$pcexp <= ztgo]))
+
+# Functions for poverty measures (FGT)
+res.dom.ben = with(datbn, sapply(datbn, FGT, z = vz_ben, y = pcexp, a = 0))
+
+a = c(1, 2, 3, 4)
+combn(a, 2)
+AZ = NA
+AZ = combn(a, 2)[1, ] - combn(a, 2)[2, ]
+AZ
+ifelse(AZ[1] <= 0, AZ, NA)
+
+# (Replace 'a' with a vector of the 4 poverty measures functions)
+AZ[1] >= 0
+                                
+```
+
+```{r}
+# Define the function Ft to calculate the poverty gap index using a specific formula based on household weights, income (y), and poverty thresholds (z) for each country. 
+Ft = function(y, z, w, a) {
+  y   # Poverty line for each country
+  w   # Household weights
+  z   # Poverty threshold
+  # Calculate the poverty gap index with the formula and round the result
+  round(sum((w * (1 - y / z)^a) * (y <= z), na.rm = TRUE) * 100 / sum(w, na.rm = TRUE), 2)
+}
+
+# Apply the Ft function to the data of each country (Benin, Burkina Faso, Niger, and Togo) with the corresponding poverty line (vz_ben, vz_bfa, etc.)
+res.dom.ben = with(datbn, sapply(vz_ben, Ft, y = datbn$pcexp, w = datbn$hhweight, a = 0))
+res.dom.bfa = with(datbfa, sapply(vz_bfa, Ft, y = datbfa$pcexp, w = datbfa$hhweight, a = 0))
+res.dom.nig = with(datnig, sapply(vz_nig, Ft, y = datnig$pcexp, w = datnig$hhweight, a = 0))
+res.dom.tgo = with(dattgo, sapply(vz_tgo, Ft, y = dattgo$pcexp, w = dattgo$hhweight, a = 0))
+
+# Calculate the differences between poverty measures for different country pairs and check if the first country dominates the second (i.e., has lower poverty)
+ERR = res.dom.ben - res.dom.bfa
+all(ERR <= 0)  # Check if Benin dominates Burkina Faso
+
+# Create a matrix for dominance comparison between countries
+g = matrix(data = (c(1, 2, 3, 4)), ncol = 4, nrow = 4, byrow = TRUE)
+
+# Initialize empty vectors to store dominance comparison results for each country pair
+bfa.val = c("bfa-ben" = NA, "bfa-nig" = NA, "bfa-tgo" = NA)
+nig.val = c("nig-ben" = NA, "nig-bfa" = NA, "nig-tgo" = NA)
+tgo.val = c("tgo-ben" = NA, "tgo-bfa" = NA, "tgo-nig" = NA)
+
+# Compare Benin to other countries
+abb = res.dom.ben - res.dom.bfa
+ab = all(abb <= 0)
+acc = res.dom.ben - res.dom.nig
+ac = all(acc <= 0)
+add = res.dom.ben - res.dom.tgo
+ad = all(add <= 0)
+ben.val = c(ab, ac, ad)
+
+# Compare Burkina Faso to other countries
+baa = res.dom.bfa - res.dom.ben
+ba = all(baa <= 0)
+bcc = res.dom.bfa - res.dom.nig
+bc = all(bcc <= 0)
+bdd = res.dom.bfa - res.dom.tgo
+bd = all(bdd <= 0)
+bfa.val = c(ba, bc, bd)
+
+# Compare Niger to other countries
+caa = res.dom.nig - res.dom.ben
+ca = all(caa <= 0)
+cbb = res.dom.nig - res.dom.bfa
+cb = all(cbb <= 0)
+cdd = res.dom.nig - res.dom.tgo
+cd = all(cdd <= 0)
+nig.val = c(ca, cb, cd)
+
+# Compare Togo to other countries
+daa = res.dom.tgo - res.dom.ben
+da = all(daa <= 0)
+dbb = res.dom.tgo - res.dom.bfa
+db = all(dbb <= 0)
+dcc = res.dom.tgo - res.dom.nig
+dc = all(dcc <= 0)
+tgo.val = c(da, db, dc)
+
+# Store the results of dominance comparisons in a vector and create a matrix of the results
+dominance.stoch = c(ben.val, bfa.val, nig.val, tgo.val)
+mat.dom = matrix(dominance.stoch, ncol = 3, nrow = 4, byrow = TRUE)
+mat.dom
+
+# Check if the dominance comparisons for Benin are valid (all TRUE)
+BEN.dom = c(ab1, ac1, ad1)
+BEN.dom
+BEN.dom >= 0
+BEN.dom == "TRUE"
+
+# Loop through a list of poverty measure results for different countries and perform additional analysis (though incomplete here)
+for (i in length(c(res.dom.bfa, res.dom.nig, res.dom.tgo))) {
+  res.dom.ben - i
+  MAT = c
+}
+
+# Summarize the poverty data for Benin (datbn$pcexp)
+summary(datbn$pcexp)
+
+# Create combinations of elements in a vector D and calculate their differences
+combn(D, 2)
+length
+AZ = NA
+AZ = combn(D, 2)[1, ] - combn(D, 2)[2, ]
+AZ
+
+AZ.bis = NA
+AZ.bis = combn(D, 2)[2, ] - combn(D, 2)[1, ]
+AZ.bis
+
+# Create combinations of the numbers 1, 2, 3, and 4 taken 2 at a time
+combn(c(1, 2, 3, 4), 2)
+
+# Define a function to calculate the FGT poverty measure for a specific threshold z and parameter a
+FGTy = function(datbn, z, a) {
+  y = datbfa$pcexp  # Income
+  w = datbfa$hhweight  # Household weights
+  z = 267985  # Poverty threshold
+  # Calculate the FGT measure
+  round(sum((w * (1 - y / z)^a) * (y <= z), na.rm = TRUE) * 100 / sum(w, na.rm = TRUE), 2)
+}
+
+# Apply the FGT function for different values of a (0, 1, and 2)
+fgty = sapply(0:2, function(x) round(FGTy(datbfa, z, x), 2))
+
+```
+

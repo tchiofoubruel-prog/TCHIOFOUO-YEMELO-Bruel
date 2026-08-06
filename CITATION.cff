@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use code from this repository, please cite it as below."
+type: software
+title: "Applied Econometrics and Machine Learning"
+authors:
+  - family-names: "Tchiofouo Yemelo"
+    given-names: "Bruel"
+    email: "tchiofoubruel@gmail.com"
+repository-code: "https://github.com/tchiofoubruel-prog/applied-econometrics-and-ml"
+license: MIT
+keywords:
+  - econometrics
+  - impact-evaluation
+  - development-economics
+  - machine-learning
+  - geospatial

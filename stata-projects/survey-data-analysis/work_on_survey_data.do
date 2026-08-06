@@ -1,3 +1,5 @@
+* Paths use the repository convention: ./data for inputs, ./output for results.
+* Point them at your local copies before running (source data is not distributed; see root README).
 *III) This section pertains to codes applied in class for learning how to handle survey data. The course was taught by Émilie Caldeira, Associate Professor at the Center for Studies and Research in International Development (CERDI) at Université Clermont Auvergne.
 
 ////////////////////////////////////////////////////////////////////////////////TD 1: Sampling Weights//////////////////////////////////////////////////////////////////////////////////////////
@@ -435,8 +437,8 @@ log close
 clear all
 capture log close
 set more off
-global sourcedata "C:\Users\emcaldei\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Data"
-global savedata "C:\Users\emcaldei\Documents\Documents\1 - COURS\5-  Analyse de données d'enquête\Data\Results"
+global sourcedata "./data"
+global savedata "./output"
 local date 2019xxxx
 log using "$savedata\log`date'.log", replace
 

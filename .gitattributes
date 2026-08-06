@@ -1,0 +1,10 @@
+# Normalize line endings: LF in repo, native on checkout
+* text=auto
+*.ipynb text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.do text
+*.Rmd text
+*.png binary
+*.jpg binary
+*.webp binary

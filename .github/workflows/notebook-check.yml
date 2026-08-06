@@ -1,0 +1,31 @@
+# Syntax check for Python notebooks: converts each .ipynb to a script and
+# byte-compiles it. Catches syntax errors and malformed JSON without needing
+# the (non-distributed) source data. Complements render-check.yml, which does
+# the equivalent purl-and-parse check for R Markdown.
+name: Check Python notebooks
+
+on:
+  push:
+    paths: ["python-projects/**/*.ipynb"]
+  pull_request:
+    paths: ["python-projects/**/*.ipynb"]
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install nbconvert
+        run: pip install jupyter nbconvert
+      - name: Convert and byte-compile every notebook
+        run: |
+          set -e
+          find python-projects -name "*.ipynb" -print0 | while IFS= read -r -d '' f; do
+            echo "Checking: $f"
+            jupyter nbconvert --to script --stdout "$f" > /tmp/nb_check.py
+            python -m py_compile /tmp/nb_check.py
+          done

@@ -1,3 +1,5 @@
+* Paths use the repository convention: ./data for inputs, ./output for results.
+* Point them at your local copies before running (source data is not distributed; see root README).
 /*********************************************************************
  Education RCT Analysis Do-File
  Author: TCHIOFOUO YEMELO Bruel
@@ -26,7 +28,7 @@ capture log close
 set more off              // turn off pagination of output for convenience
 
 *Create two globals to indicate where to save the results.
-global savedata "C:\Users\tchio\OneDrive\Bureau\Stage\Stage_et_opport_2024\candidatures stages_2024_2025\predocs\Weiss Fund for Research in Development Economics_\data assesment on RCT\Bruel_TCHIOFOUOYEMELO\Results"
+global savedata "./output"
 
 *Create a log file to record the results every time the do-file is run. *(Good practice: assign the current date to the log file).*  
   
@@ -34,7 +36,7 @@ local date 20250328
 log using "$savedata\log`date'.log", replace
 
 *  Set working directory to the folder containing the data 
- cd "C:\Users\tchio\OneDrive\Bureau\Stage\Stage_et_opport_2024\candidatures stages_2024_2025\predocs\Weiss Fund for Research in Development Economics_\data assesment on RCT\Bruel_TCHIOFOUOYEMELO\Data\Raw data-selected"   // **Note**: update this if not running from data directory
+ cd "./data"   // **Note**: update this if not running from data directory
 
 /************************************************************************
  ** Section 1: Data Import and Cleaning

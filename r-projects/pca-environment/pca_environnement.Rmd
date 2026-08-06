@@ -67,7 +67,7 @@ cat("\n=== IMPORTATION DES DONNÉES ===\n\n")
 
 # OPTION 1 : Fichier Excel
 # Chemin par défaut - ADAPTEZ SI NÉCESSAIRE
-excel_path <- "C:/Users/tchio/OneDrive/Bureau/ACP_Complet/envirmt.xlsx"
+excel_path <- "./data/envirmt.xlsx"  # point at your local copy (data not distributed; see root README)
 
 # Vérifier si le fichier existe
 if (file.exists(excel_path)) {

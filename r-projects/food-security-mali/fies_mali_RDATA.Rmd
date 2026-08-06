@@ -49,7 +49,7 @@ install_if_missing(packages_needed)
 cat("\n=== CHARGEMENT DU FICHIER .RData ===\n\n")
 
 # Chemin vers votre fichier .RData
-rdata_path <- "C:/Users/tchio/OneDrive/Bureau/FIES/.RData"
+rdata_path <- "./data/FIES.RData"  # point at your local copy (data not distributed; see root README)
 
 # Vérifier si le fichier existe
 if (!file.exists(rdata_path)) {
@@ -629,7 +629,7 @@ cat("\n", rep("=", 70), "\n", sep = "")
 1. **Ouvrir ce fichier dans RStudio**
 
 2. **Vérifier le chemin du fichier .RData** (ligne 48)
-   - Actuellement : `"C:/Users/tchio/OneDrive/Bureau/FIES/.RData"`
+   - Actuellement : `"./data/FIES.RData"`
    - Modifier si nécessaire
 
 3. **Exécuter le script chunk par chunk** pour identifier :
